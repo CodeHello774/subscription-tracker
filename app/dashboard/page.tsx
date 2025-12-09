@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-// 1. 修正：加入 User 到 import 列表
 import { Plus, LogOut, Calendar as CalendarIcon, Trash2, X, Wallet, CreditCard, PieChart as PieIcon, Settings, Globe, TrendingUp, RefreshCcw, ChevronDown, Check, Download, Search, Filter, ExternalLink, LayoutGrid, List, Pencil, Zap, User } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { SiNetflix, SiSpotify, SiYoutube, SiOpenai, SiApple, SiAmazon, SiAdobe } from "react-icons/si";
@@ -12,6 +11,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Calendar from 'react-calendar';
 
+// 自製 Disney+ 圖標
 const DisneyPlusIcon = ({ size = 24, color = "currentColor" }: { size?: number, color?: string }) => (
   <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M10.957 12.893h-1.066v2.693H7.954v-2.693H6.876v-1.04h1.078V9.16h1.937v2.693h1.066v1.04zm4.708 2.616h-1.895l-1.053-2.652-.014.004-1.04 2.648H9.728l1.986-4.632-1.815-4.144h1.968l.897 2.456.014-.004.912-2.452h1.94l-3.926 8.776zm4.188-4.628h3.295v1.276h-3.295v3.296h-1.28v-3.296h-3.292v-1.276h3.292V7.585h1.28v3.296z"/></svg>
 );
@@ -431,6 +431,7 @@ export default function DashboardPage() {
                         {cancelUrl && (
                             <a href={cancelUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-yellow-400 transition-colors p-2 hover:bg-white/5 rounded-lg" title="如何取消訂閱？"><ExternalLink size={16} /></a>
                         )}
+                        {/* 編輯按鈕 */}
                         <button onClick={(e) => { e.stopPropagation(); handleEditClick(sub); }} className="text-slate-600 hover:text-blue-400 transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90" title="編輯"><Pencil size={16} /></button>
                         <button onClick={(e) => { e.stopPropagation(); handleDelete(sub.id); }} className="text-slate-600 hover:text-red-400 transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90" title="刪除"><Trash2 size={16} /></button>
                     </div>
@@ -440,7 +441,7 @@ export default function DashboardPage() {
             </AnimatePresence>
           </div>
         )}
-      </main>
+      </AnimatePresence>
 
       {/* Modal - 支援新增與編輯 */}
       <AnimatePresence>
