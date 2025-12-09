@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-// 1. 改用新的 @supabase/ssr 套件
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -10,7 +9,6 @@ export async function GET(request: Request) {
   const next = searchParams.get('next') ?? '/dashboard'
 
   if (code) {
-    // 2. 在 Next.js 15+，cookies() 必須加上 await
     const cookieStore = await cookies()
 
     const supabase = createServerClient(
@@ -18,7 +16,6 @@ export async function GET(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          // 3. 適配新的 Cookie 讀寫方法
           get(name: string) {
             return cookieStore.get(name)?.value
           },
@@ -32,14 +29,27 @@ export async function GET(request: Request) {
       }
     )
     
-    // 4. 交換 Code 取得 Session
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`)
+      // --- 👇 關鍵修復：優先讀取 Cloud Run 傳來的真實網址 ---
+      const forwardedHost = request.headers.get('x-forwarded-host') // Cloud Run 會有這個
+      const isLocalEnv = process.env.NODE_ENV === 'development'
+
+      if (isLocalEnv) {
+        // 本機開發時：維持使用 origin (http://localhost:3000)
+        return NextResponse.redirect(`${origin}${next}`)
+      } else if (forwardedHost) {
+        // 雲端部署時：使用 forwardedHost (https://xxxx.run.app)
+        // 注意：Cloud Run 預設是 https，所以我們強制加 https://
+        return NextResponse.redirect(`https://${forwardedHost}${next}`)
+      } else {
+        // 備案：如果都抓不到，才用 origin
+        return NextResponse.redirect(`${origin}${next}`)
+      }
     }
   }
 
-  // 如果驗證失敗，跳轉回登入頁或錯誤頁
+  // 驗證失敗時跳轉
   return NextResponse.redirect(`${origin}/auth/auth-code-error`)
 }
