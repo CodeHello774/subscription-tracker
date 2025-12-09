@@ -1,326 +1,505 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+// 1. 修正：加入 User 到 import 列表
+import { Plus, LogOut, Calendar as CalendarIcon, Trash2, X, Wallet, CreditCard, PieChart as PieIcon, Settings, Globe, TrendingUp, RefreshCcw, ChevronDown, Check, Download, Search, Filter, ExternalLink, LayoutGrid, List, Pencil, Zap, User } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { SiNetflix, SiSpotify, SiYoutube, SiOpenai, SiApple, SiAmazon, SiAdobe } from "react-icons/si";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import Calendar from 'react-calendar';
+
+const DisneyPlusIcon = ({ size = 24, color = "currentColor" }: { size?: number, color?: string }) => (
+  <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M10.957 12.893h-1.066v2.693H7.954v-2.693H6.876v-1.04h1.078V9.16h1.937v2.693h1.066v1.04zm4.708 2.616h-1.895l-1.053-2.652-.014.004-1.04 2.648H9.728l1.986-4.632-1.815-4.144h1.968l.897 2.456.014-.004.912-2.452h1.94l-3.926 8.776zm4.188-4.628h3.295v1.276h-3.295v3.296h-1.28v-3.296h-3.292v-1.276h3.292V7.585h1.28v3.296z"/></svg>
+);
+
+const SUPPORTED_CURRENCIES = [
+    { code: 'TWD', symbol: 'NT$', flag: '🇹🇼' }, { code: 'USD', symbol: '$', flag: '🇺🇸' }, { code: 'JPY', symbol: '¥', flag: '🇯🇵' },
+    { code: 'KRW', symbol: '₩', flag: '🇰🇷' }, { code: 'CNY', symbol: '¥', flag: '🇨🇳' }, { code: 'EUR', symbol: '€', flag: '🇪🇺' },
+];
+
+const POPULAR_SERVICES = [
+  { name: "Netflix", icon: <SiNetflix size={24} color="#E50914"/>, category: "娛樂", color: "#E50914", cancelUrl: "https://www.netflix.com/cancelplan", plans: [{ name: "基本", price: 270 }, { name: "標準", price: 330 }, { name: "高級", price: 390 }] },
+  { name: "Spotify", icon: <SiSpotify size={24} color="#1DB954"/>, category: "音樂", color: "#1DB954", cancelUrl: "https://support.spotify.com/tw/article/cancel-premium/", plans: [{ name: "個人", price: 149 }, { name: "雙人", price: 198 }, { name: "家庭", price: 268 }, { name: "學生", price: 75 }] },
+  { name: "Youtube", icon: <SiYoutube size={24} color="#FF0000"/>, category: "娛樂", color: "#FF0000", cancelUrl: "https://www.youtube.com/paid_memberships", plans: [{ name: "個人", price: 199 }, { name: "家庭", price: 399 }, { name: "學生", price: 119 }] },
+  { name: "Disney+", icon: <DisneyPlusIcon size={24} color="#113CCF"/>, category: "娛樂", color: "#113CCF", cancelUrl: "https://help.disneyplus.com/", plans: [{ name: "標準", price: 270 }, { name: "高級", price: 320 }] },
+  { name: "ChatGPT", icon: <SiOpenai size={24} color="#74AA9C"/>, category: "生產力", color: "#74AA9C", cancelUrl: "https://help.openai.com/en/articles/7232896-how-do-i-cancel-my-subscription", plans: [{ name: "Plus (USD)", price: 650 }, { name: "Team (USD)", price: 960 }] },
+  { name: "iCloud", icon: <SiApple size={24} color="#FFFFFF"/>, category: "雲端", color: "#FFFFFF", cancelUrl: "https://support.apple.com/zh-tw/HT207594", plans: [{name: "50GB", price: 30}, {name: "200GB", price: 90}, {name: "2TB", price: 300}] },
+  { name: "AWS", icon: <SiAmazon size={24} color="#FF9900"/>, category: "雲端", color: "#FF9900", cancelUrl: "https://aws.amazon.com/", plans: [{name: "預算", price: 500}] },
+  { name: "Adobe", icon: <SiAdobe size={24} color="#FF0000"/>, category: "設計", color: "#FF0000", cancelUrl: "https://helpx.adobe.com/tw/manage-account/using/cancel-subscription.html", plans: [{name: "攝影計畫", price: 326}, {name: "完整全家桶", price: 1700}] },
+];
+
+const COLORS = ['#c084fc', '#60a5fa', '#34d399', '#f472b6', '#fbbf24', '#a78bfa'];
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({
-    name: "",
-    price: "",
-    billing_cycle: "monthly",
-    start_date: "",
-    category: "",
-  });
+  const [isEditing, setIsEditing] = useState(false); 
+  const [editId, setEditId] = useState<string | null>(null); 
+  
+  const [selectedService, setSelectedService] = useState<any>(null); 
+  const [form, setForm] = useState({ name: "", price: "", billing_cycle: "monthly", start_date: "", category: "" });
   const [formLoading, setFormLoading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  
+  const [currency, setCurrency] = useState('TWD');
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({ 'TWD': 1 });
+  const [rateLoading, setRateLoading] = useState(true);
+  const [currencyMenuOpen, setCurrencyMenuOpen] = useState(false);
+  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterCategory, setFilterCategory] = useState("All");
+  const [rightView, setRightView] = useState<'chart' | 'calendar'>('chart');
 
   const supabase = createClient();
+  const router = useRouter();
 
-  // Get current user
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
+    const fetchRates = async () => {
+        try {
+            const res = await fetch('https://open.er-api.com/v6/latest/TWD');
+            const data = await res.json();
+            if (data && data.rates) setExchangeRates(data.rates);
+            setRateLoading(false);
+        } catch (error) { console.error("匯率失敗", error); setRateLoading(false); }
     };
-    getUser();
+    fetchRates();
   }, []);
 
-  // Fetch subscriptions for this user
-  const fetchSubscriptions = async () => {
-    if (!user) return;
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("start_date", { ascending: false });
-    if (!error) setSubscriptions(data || []);
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { router.push('/login'); return; }
+      setUser(user);
+      
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (profile) setUserProfile(profile);
+      
+      fetchSubscriptions(user.id);
+    };
+    init();
+  }, [router]);
+
+  const fetchSubscriptions = async (userId: string) => {
+    const { data, error } = await supabase.from("subscriptions").select("*").eq("user_id", userId).order("price", { ascending: false });
+    if (data) setSubscriptions(data);
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchSubscriptions();
-    }
-    // eslint-disable-next-line
-  }, [user]);
-
-  // Handle form input changes
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const getConvertedValue = (priceTWD: number) => {
+    const rate = exchangeRates[currency] || 1;
+    return priceTWD * rate;
   };
 
-  // Handle form submit
+  const convertPrice = (priceTWD: number) => {
+    const converted = getConvertedValue(priceTWD);
+    if (['JPY', 'KRW'].includes(currency)) return Math.round(converted).toLocaleString();
+    return (Math.round(converted * 100) / 100).toLocaleString();
+  };
+  
+  const currentSymbol = SUPPORTED_CURRENCIES.find(c => c.code === currency)?.symbol || '$';
+
+  const chartData = useMemo(() => {
+    return subscriptions.reduce((acc: any[], sub) => {
+      const category = sub.category || "其他";
+      const existing = acc.find(item => item.name === category);
+      const priceTWD = Number(sub.price);
+      const monthlyPriceTWD = sub.billing_cycle === 'yearly' ? Math.round(priceTWD / 12) : priceTWD;
+      const finalValue = Math.round(getConvertedValue(monthlyPriceTWD));
+
+      if (existing) existing.value += finalValue;
+      else acc.push({ name: category, value: finalValue });
+      return acc;
+    }, []);
+  }, [subscriptions, currency, exchangeRates]);
+
+  const totalMonthlyCostDisplay = useMemo(() => {
+    const totalTWD = subscriptions.reduce((acc, sub) => {
+        const price = Number(sub.price);
+        return acc + (sub.billing_cycle === 'yearly' ? Math.round(price / 12) : price);
+    }, 0);
+    return convertPrice(totalTWD);
+  }, [subscriptions, currency, exchangeRates]);
+
+  const filteredSubscriptions = subscriptions.filter(sub => {
+      const matchesSearch = sub.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = filterCategory === "All" || sub.category === filterCategory;
+      return matchesSearch && matchesCategory;
+  });
+
+  const categories = ["All", ...Array.from(new Set(subscriptions.map(s => s.category || "其他")))];
+
+  const calculateNextPayment = (startDate: string, cycle: string) => {
+    if (!startDate) return new Date().toISOString().split('T')[0];
+    const start = new Date(startDate);
+    const today = new Date();
+    let next = new Date(start);
+    if (next > today) return next.toISOString().split('T')[0];
+    while (next <= today) {
+      if (cycle === 'monthly') next.setMonth(next.getMonth() + 1);
+      else next.setFullYear(next.getFullYear() + 1);
+    }
+    return next.toISOString().split('T')[0];
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError(null);
-
-    // Simple validation
-    if (!form.name || !form.price || !form.billing_cycle || !form.start_date) {
-      setFormError("請填寫所有必填欄位");
-      return;
-    }
-
     setFormLoading(true);
-    const { error } = await supabase.from("subscriptions").insert([
-      {
-        name: form.name,
-        price: parseFloat(form.price),
-        billing_cycle: form.billing_cycle,
-        start_date: form.start_date,
-        category: form.category,
-        user_id: user.id,
-      },
-    ]);
-    setFormLoading(false);
-
-    if (error) {
-      setFormError(error.message);
+    const nextDate = calculateNextPayment(form.start_date, form.billing_cycle);
+    
+    let error;
+    if (isEditing && editId) {
+        const { error: updateError } = await supabase.from("subscriptions").update({ ...form, price: parseFloat(form.price), next_payment_date: nextDate }).eq("id", editId);
+        error = updateError;
     } else {
-      setModalOpen(false);
-      setForm({
-        name: "",
-        price: "",
-        billing_cycle: "monthly",
-        start_date: "",
-        category: "",
-      });
-      fetchSubscriptions();
+        const { error: insertError } = await supabase.from("subscriptions").insert([{ ...form, price: parseFloat(form.price), user_id: user.id, next_payment_date: nextDate }]);
+        error = insertError;
     }
+
+    setFormLoading(false);
+    if (!error) { closeModal(); fetchSubscriptions(user.id); }
+    else { alert("操作失敗: " + error.message); }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <p className="text-gray-500">載入中...</p>
-      </div>
-    );
+  const handleDelete = async (id: string) => {
+    if(!confirm("確定要刪除？")) return;
+    await supabase.from("subscriptions").delete().eq("id", id);
+    fetchSubscriptions(user.id);
   }
 
-  if (!user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <p className="text-gray-500">尚未登入，請先登入。</p>
-      </div>
-    );
-  }
+  const handleEditClick = (sub: any) => {
+      setIsEditing(true);
+      setEditId(sub.id);
+      setForm({ name: sub.name, price: sub.price.toString(), billing_cycle: sub.billing_cycle, start_date: sub.start_date, category: sub.category || "" });
+      const service = POPULAR_SERVICES.find(s => s.name.toLowerCase() === sub.name.toLowerCase());
+      if(service) setSelectedService(service);
+      else setSelectedService(null);
+      setModalOpen(true);
+  };
 
-  // --- Render
+  const handleExportCSV = () => {
+    if (subscriptions.length === 0) { alert("目前沒有資料可以匯出"); return; }
+    const BOM = "\uFEFF"; 
+    const headers = ["服務名稱", `金額(${currency})`, "週期", "分類", "下次扣款日"];
+    const rows = subscriptions.map(sub => {
+        const priceTWD = Number(sub.price);
+        const convertedPrice = getConvertedValue(priceTWD).toFixed(2);
+        return [sub.name, convertedPrice, sub.billing_cycle === 'monthly' ? '月繳' : '年繳', sub.category, sub.next_payment_date];
+    });
+    const csvContent = BOM + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `subscriptions_${currency}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleServiceClick = (service: any) => {
+    if (selectedService?.name === service.name) { setSelectedService(null); } 
+    else { setSelectedService(service); setForm({ ...form, name: service.name, category: service.category }); }
+  };
+
+  const handlePlanSelect = (plan: any) => { setForm({ ...form, price: plan.price.toString(), billing_cycle: "monthly" }); };
+  
+  const closeModal = () => {
+      setModalOpen(false); setSelectedService(null); setIsEditing(false); setEditId(null);
+      setForm({ name: "", price: "", billing_cycle: "monthly", start_date: "", category: "" });
+  };
+
+  const getServiceIcon = (name: string) => {
+    const found = POPULAR_SERVICES.find(s => s.name.toLowerCase() === name.toLowerCase());
+    if (found) return found.icon;
+    return <div className="h-12 w-12 rounded-xl bg-slate-800 flex items-center justify-center text-xl font-bold text-white border border-white/10 shadow-inner group-hover:scale-110 transition-transform">{name.charAt(0).toUpperCase()}</div>;
+  };
+
+  const getCancelUrl = (name: string) => {
+      const found = POPULAR_SERVICES.find(s => s.name.toLowerCase() === name.toLowerCase());
+      return found?.cancelUrl || null;
+  };
+
+  const tileContent = ({ date, view }: { date: Date, view: string }) => {
+    if (view === 'month') {
+        const dateStr = date.toISOString().split('T')[0];
+        const subsOnThisDay = subscriptions.filter(sub => sub.next_payment_date === dateStr);
+        if (subsOnThisDay.length > 0) {
+            return (
+                <div className="calendar-dot-container">
+                    {subsOnThisDay.map((sub, idx) => {
+                        const service = POPULAR_SERVICES.find(s => s.name.toLowerCase() === sub.name.toLowerCase());
+                        const dotColor = service ? service.color : '#c084fc';
+                        return <div key={idx} className="calendar-dot" style={{ backgroundColor: dotColor }}></div>
+                    })}
+                </div>
+            )
+        }
+    }
+    return null;
+  };
+
+  if (loading) return <div className="min-h-screen bg-[#0f172a] flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div></div>;
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-4xl">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">
-            📊 訂閱管理儀表板
-          </h1>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.href = "/login";
-            }}
-            className="px-4 py-2 text-sm text-red-600 border border-red-200 rounded hover:bg-red-50"
-          >
-            登出
-          </button>
+    <div className="min-h-screen bg-[#0f172a] text-white font-sans selection:bg-purple-500/30">
+      
+      <nav className="sticky top-0 z-30 backdrop-blur-xl bg-[#0f172a]/80 border-b border-white/5">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <Wallet className="w-6 h-6 text-white" fill="currentColor" fillOpacity={0.2} />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-200">訂閱管家</h1>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="relative">
+                <button onClick={() => setCurrencyMenuOpen(!currencyMenuOpen)} className="flex items-center gap-2 bg-[#1e293b] hover:bg-[#334155] active:scale-95 transition-all rounded-full px-4 py-2 border border-white/10">
+                    <Globe size={14} className="text-purple-400"/>
+                    <span className="text-sm font-medium">{currency}</span>
+                    <ChevronDown size={12} className={`text-slate-400 transition-transform ${currencyMenuOpen ? 'rotate-180' : ''}`}/>
+                </button>
+                {currencyMenuOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-[#1e293b] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                        {SUPPORTED_CURRENCIES.map((c) => (
+                            <button key={c.code} onClick={() => { setCurrency(c.code); setCurrencyMenuOpen(false); }} className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-white/5 transition-colors text-left">
+                                <span className="flex items-center gap-2"><span className="text-lg">{c.flag}</span><span>{c.code}</span></span>
+                                {currency === c.code && <Check size={14} className="text-purple-400"/>}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <button onClick={() => router.push('/settings')} className="p-2 text-slate-400 hover:text-white transition-colors hover:bg-white/5 rounded-full active:scale-90"><Settings size={20} /></button>
+            <div className="flex items-center gap-2 border-l border-white/10 pl-4 ml-2">
+                {userProfile?.avatar_url ? (
+                    <img src={userProfile.avatar_url} alt="User" className="w-8 h-8 rounded-full border border-purple-500 object-cover" />
+                ) : (
+                    <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center border border-white/10">
+                        <User size={14} className="text-slate-400" />
+                    </div>
+                )}
+                <span className="text-sm text-slate-400 hidden sm:block">
+                    {userProfile?.display_name || user?.email}
+                </span>
+            </div>
+            <button onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }} className="p-2 text-slate-400 hover:text-red-400 transition-colors active:scale-90"><LogOut size={20} /></button>
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-6 py-10">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-12">
+          
+          <motion.div whileHover={{ y: -5 }} className="lg:col-span-1 relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 to-purple-700 p-8 shadow-2xl flex flex-col justify-between min-h-[300px] group cursor-default">
+            <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:scale-110 transition-transform duration-700"></div>
+            <div>
+                <p className="text-indigo-200 font-medium mb-1 flex items-center gap-2 text-sm"><CreditCard size={16}/> 每月預估支出</p>
+                <h2 className="text-4xl font-bold mb-2 text-white drop-shadow-md"><span className="text-2xl opacity-80 mr-1">{currentSymbol}</span>{totalMonthlyCostDisplay}</h2>
+            </div>
+            <div className="bg-black/20 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+               <p className="text-xs text-indigo-200 mb-1">最昂貴的訂閱</p>
+               <p className="font-bold text-lg text-white truncate">{subscriptions.length > 0 ? subscriptions[0].name : "無"}</p>
+            </div>
+          </motion.div>
+
+          <motion.div whileHover={{ y: -5 }} className="lg:col-span-2 bg-[#1e293b] rounded-3xl p-6 border border-white/5 shadow-xl relative overflow-hidden flex flex-col hover:border-purple-500/30 transition-colors">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    {rightView === 'chart' ? <PieIcon className="text-purple-400" size={18} /> : <CalendarIcon className="text-purple-400" size={18} />}
+                    <h3 className="text-base font-bold text-white">{rightView === 'chart' ? '支出分類' : '訂閱行事曆'}</h3>
+                </div>
+                <div className="flex bg-[#0f172a] rounded-lg p-1 border border-white/10">
+                    <button onClick={() => setRightView('chart')} className={`px-3 py-1 text-xs rounded-md transition-all ${rightView === 'chart' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}><LayoutGrid size={14}/></button>
+                    <button onClick={() => setRightView('calendar')} className={`px-3 py-1 text-xs rounded-md transition-all ${rightView === 'calendar' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'}`}><List size={14}/></button>
+                </div>
+            </div>
+
+            <div className="flex-1 w-full h-[250px] min-h-[250px] relative overflow-y-auto custom-scrollbar">
+                {rightView === 'chart' ? (
+                    chartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie data={chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                    {chartData.map((entry: any, index: number) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(0,0,0,0.2)" strokeWidth={2} />))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', color: '#fff' }} itemStyle={{ color: '#fff' }} />
+                                <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" wrapperStyle={{ right: 0 }} />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    ) : (<div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm"><p>尚無數據</p></div>)
+                ) : (
+                    <div className="flex justify-center h-full">
+                        <Calendar tileContent={tileContent} className="react-calendar" locale="zh-TW" />
+                    </div>
+                )}
+            </div>
+          </motion.div>
+
+          <motion.div whileHover={{ y: -5 }} className="lg:col-span-1 bg-[#1e293b] rounded-3xl p-6 border border-white/5 shadow-xl flex flex-col hover:border-purple-500/30 transition-colors">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2"><RefreshCcw className={`text-blue-400 ${rateLoading ? 'animate-spin' : ''}`} size={18} /><h3 className="text-base font-bold text-white">即時匯率</h3></div>
+                <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-1 rounded">Base: TWD</span>
+            </div>
+            <div className="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1 mb-4">
+                {['USD', 'JPY', 'EUR', 'CNY', 'KRW'].map((curr) => (
+                   <div key={curr} className="flex justify-between items-center p-3 rounded-xl bg-[#0f172a] border border-white/5 hover:border-purple-500/50 transition-colors">
+                       <span className="text-sm font-bold text-slate-300">{curr}</span>
+                       <span className="text-sm font-mono text-purple-300">{exchangeRates[curr] ? (1 / exchangeRates[curr]).toFixed(3) : '-'}</span>
+                   </div> 
+                ))}
+            </div>
+            <div className="pt-3 border-t border-white/5 text-center">
+                <p className="text-[10px] text-slate-500">
+                    匯率資料來源：<a href="https://tw.rter.info/howto_currencyapi.php" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 ml-1 hover:underline transition-colors">即匯站 RTER.info</a>
+                </p>
+            </div>
+          </motion.div>
         </div>
 
-        {/* Welcome */}
-        <div className="mt-6 rounded-lg bg-white p-6 shadow">
-          <p className="text-lg text-gray-700">
-            👋 嗨，<span className="font-bold text-blue-600">{user.email}</span>
-            ！
-          </p>
-          <p className="mt-2 text-gray-500">
-            恭喜你！這是你的私人儀表板。
-            <br />
-            (目前使用 Client-side Rendering 模式)
-          </p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+          <div className="flex flex-col md:flex-row gap-4 flex-1">
+              <h3 className="text-2xl font-bold flex items-center gap-2 text-white shrink-0">訂閱列表</h3>
+              
+              <div className="relative group max-w-sm w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-purple-400 transition-colors" size={18} />
+                  <input type="text" placeholder="搜尋訂閱..." className="w-full pl-10 pr-4 py-2 bg-[#1e293b] border border-white/10 rounded-full text-sm text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
 
-          {/* Add Subscription Button */}
-          <div className="mt-8 mb-4 flex">
-            <button
-              onClick={() => setModalOpen(true)}
-              className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 font-medium shadow"
-            >
-              ＋ 新增訂閱項目
-            </button>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  <Filter size={16} className="text-slate-500 shrink-0" />
+                  {categories.map(cat => (
+                      <button key={cat} onClick={() => setFilterCategory(cat)} className={`px-3 py-1 rounded-full text-xs font-medium border transition-all whitespace-nowrap ${filterCategory === cat ? 'bg-purple-600 text-white border-purple-500' : 'bg-[#1e293b] text-slate-400 border-white/10 hover:text-white'}`}>{cat}</button>
+                  ))}
+              </div>
           </div>
 
-          {/* Modal */}
-          {modalOpen && (
-            <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-              <div className="bg-white rounded-lg w-full max-w-md p-6 relative shadow-lg">
-                <button
-                  className="absolute top-3 right-4 text-xl text-gray-400 hover:text-gray-600"
-                  onClick={() => { setModalOpen(false); setFormError(null); }}
-                  aria-label="關閉"
-                >
-                  ×
-                </button>
-                <h2 className="text-xl font-semibold mb-4 text-gray-900">
-                  新增訂閱項目
-                </h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex gap-3 shrink-0">
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={handleExportCSV} className="flex items-center gap-2 bg-[#1e293b] border border-white/10 hover:border-purple-500 text-white px-4 py-3 rounded-full font-medium transition-all">
+                <Download size={18} /> 匯出
+            </motion.button>
+            <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setModalOpen(true)} className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-full font-bold shadow-[0_0_20px_rgba(168,85,247,0.4)] hover:shadow-[0_0_30px_rgba(168,85,247,0.6)] transition-all">
+                <Plus size={18} /> 新增
+            </motion.button>
+          </div>
+        </div>
+
+        {filteredSubscriptions.length === 0 ? (
+          <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/5 border-dashed">
+            <p className="text-slate-400 mb-4">{subscriptions.length === 0 ? "目前空空如也 🌑" : "找不到符合的訂閱項目 🔍"}</p>
+            {subscriptions.length === 0 && <button onClick={() => setModalOpen(true)} className="text-purple-400 font-medium hover:text-purple-300">新增第一筆</button>}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <AnimatePresence>
+              {filteredSubscriptions.map((sub, index) => {
+                const iconOrLetter = getServiceIcon(sub.name);
+                const isIcon = React.isValidElement(iconOrLetter) && iconOrLetter.type !== 'div';
+                const cancelUrl = getCancelUrl(sub.name);
+
+                return (
+                <motion.div key={sub.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: index * 0.05 }} layout whileHover={{ y: -5, boxShadow: "0 10px 30px -10px rgba(168, 85, 247, 0.2)" }} className="group relative bg-[#1e293b] rounded-2xl p-6 border border-white/5 hover:border-purple-500/50 transition-all duration-300 flex flex-col justify-between">
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      名稱 <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      name="name"
-                      type="text"
-                      className="w-full border px-3 py-2 rounded"
-                      value={form.name}
-                      onChange={handleChange}
-                      required
-                      disabled={formLoading}
-                    />
+                    <div className="flex justify-between items-start mb-5">
+                        {isIcon ? (
+                            <div className="w-12 h-12 rounded-xl bg-slate-800 border border-white/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+                                {iconOrLetter}
+                            </div>
+                        ) : (
+                            iconOrLetter
+                        )}
+                        <span className="bg-purple-500/10 text-purple-300 text-xs px-3 py-1 rounded-full border border-purple-500/20">{sub.category || "訂閱"}</span>
+                    </div>
+                    <h4 className="text-lg font-bold text-white mb-1 truncate">{sub.name}</h4>
+                    <div className="flex items-baseline gap-1 mb-4 text-slate-300">
+                        <span className="text-2xl font-bold text-white">{currentSymbol} {convertPrice(sub.price)}</span>
+                        <span className="text-sm text-slate-500">/ {sub.billing_cycle === 'monthly' ? '月' : '年'}</span>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      價格 (NT$) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      name="price"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="w-full border px-3 py-2 rounded"
-                      value={form.price}
-                      onChange={handleChange}
-                      required
-                      disabled={formLoading}
-                    />
+                  
+                  <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-2">
+                    <div className="flex items-center gap-2 text-sm text-slate-500"><CalendarIcon size={14} /> <span><span className="text-purple-300">{sub.next_payment_date}</span></span></div>
+                    
+                    <div className="flex items-center gap-2">
+                        {cancelUrl && (
+                            <a href={cancelUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-yellow-400 transition-colors p-2 hover:bg-white/5 rounded-lg" title="如何取消訂閱？"><ExternalLink size={16} /></a>
+                        )}
+                        <button onClick={(e) => { e.stopPropagation(); handleEditClick(sub); }} className="text-slate-600 hover:text-blue-400 transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90" title="編輯"><Pencil size={16} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); handleDelete(sub.id); }} className="text-slate-600 hover:text-red-400 transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90" title="刪除"><Trash2 size={16} /></button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      計費週期 <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      name="billing_cycle"
-                      className="w-full border px-3 py-2 rounded"
-                      value={form.billing_cycle}
-                      onChange={handleChange}
-                      required
-                      disabled={formLoading}
-                    >
-                      <option value="monthly">每月</option>
-                      <option value="yearly">每年</option>
-                    </select>
+                </motion.div>
+              )})} 
+            </AnimatePresence>
+          </div>
+        )}
+      </main>
+
+      {/* Modal - 支援新增與編輯 */}
+      <AnimatePresence>
+        {modalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeModal} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, y: 50, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.95 }} className="bg-[#1e293b] border border-white/10 rounded-3xl shadow-2xl w-full max-w-3xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-8 border-b border-white/10 flex justify-between items-center bg-[#0f172a]/50 shrink-0">
+                <h3 className="text-2xl font-bold text-white">{isEditing ? '編輯訂閱項目' : '新增訂閱項目'}</h3>
+                <button onClick={closeModal} className="text-slate-400 hover:text-white bg-white/5 rounded-full p-2 transition-colors"><X size={24} /></button>
+              </div>
+              <div className="p-8 overflow-y-auto custom-scrollbar">
+                <div className="mb-8">
+                  <p className="text-sm text-slate-400 mb-4 font-medium tracking-wider uppercase">熱門服務 (點擊選擇方案)</p>
+                  <div className="flex gap-6 overflow-x-auto pb-4 custom-scrollbar">
+                    {POPULAR_SERVICES.map((service) => (
+                      <button key={service.name} onClick={() => handleServiceClick(service)} className={`flex-shrink-0 flex flex-col items-center gap-3 group min-w-[80px] relative`}>
+                        <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center text-slate-400 group-hover:scale-110 transition-all shadow-lg ${selectedService?.name === service.name ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-[#0f172a] border-white/10 group-hover:border-purple-500 group-hover:text-white'}`}>
+                            {React.cloneElement(service.icon as React.ReactElement, { size: 28 })}
+                        </div>
+                        <span className={`text-sm transition-colors ${selectedService?.name === service.name ? 'text-purple-300 font-bold' : 'text-slate-400 group-hover:text-white'}`}>{service.name}</span>
+                        {selectedService?.name === service.name && <div className="absolute -bottom-2 w-1.5 h-1.5 bg-purple-500 rounded-full"></div>}
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      開始日期 <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      name="start_date"
-                      type="date"
-                      className="w-full border px-3 py-2 rounded"
-                      value={form.start_date}
-                      onChange={handleChange}
-                      required
-                      disabled={formLoading}
-                    />
+                  <AnimatePresence>
+                    {selectedService && selectedService.plans && (
+                        <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:'auto'}} exit={{opacity:0, height:0}} className="overflow-hidden">
+                            <div className="bg-[#0f172a] rounded-2xl p-5 border border-purple-500/30 mt-4">
+                                <p className="text-sm text-purple-300 mb-3 font-bold flex items-center gap-2"><Zap size={16}/> 選擇 {selectedService.name} 方案</p>
+                                <div className="flex flex-wrap gap-3">
+                                    {selectedService.plans.map((plan: any) => (
+                                        <button key={plan.name} onClick={() => handlePlanSelect(plan)} className={`px-4 py-2 rounded-xl text-sm border transition-all ${form.price === plan.price.toString() ? 'bg-purple-600 text-white border-purple-500 shadow-lg shadow-purple-500/20' : 'bg-[#1e293b] text-slate-300 border-white/10 hover:border-purple-400'}`}>
+                                            {plan.name} <span className="opacity-70 ml-1 font-mono">${plan.price}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div><label className="block text-base text-slate-400 mb-2">服務名稱</label><input required className="w-full px-5 py-4 text-lg rounded-2xl bg-[#0f172a] border border-slate-700 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all" placeholder="Netflix..." value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} /></div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div><label className="block text-base text-slate-400 mb-2">價格 (TWD)</label><input required type="number" className="w-full px-5 py-4 text-lg rounded-2xl bg-[#0f172a] border border-slate-700 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all" placeholder="390" value={form.price} onChange={(e) => setForm({...form, price: e.target.value})} /></div>
+                    <div><label className="block text-base text-slate-400 mb-2">週期</label><select className="w-full px-5 py-4 text-lg rounded-2xl bg-[#0f172a] border border-slate-700 text-white focus:border-purple-500 transition-all appearance-none cursor-pointer" value={form.billing_cycle} onChange={(e) => setForm({...form, billing_cycle: e.target.value})}><option value="monthly">每月</option><option value="yearly">每年</option></select></div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      分類
-                    </label>
-                    <input
-                      name="category"
-                      type="text"
-                      className="w-full border px-3 py-2 rounded"
-                      value={form.category}
-                      onChange={handleChange}
-                      placeholder="（選填）如：娛樂、生活、雲端"
-                      disabled={formLoading}
-                    />
+                  <div className="grid grid-cols-2 gap-6">
+                     <div><label className="block text-base text-slate-400 mb-2">開始日期</label><DatePicker selected={form.start_date ? new Date(form.start_date) : null} onChange={(date: Date | null) => setForm({...form, start_date: date ? date.toISOString().split('T')[0] : ''})} dateFormat="yyyy/MM/dd" placeholderText="點擊選擇日期" className="w-full px-5 py-4 text-lg rounded-2xl bg-[#0f172a] border border-slate-700 text-white focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all outline-none cursor-pointer" portalId="root-portal" /></div>
+                     <div><label className="block text-base text-slate-400 mb-2">分類 (選填)</label><input className="w-full px-5 py-4 text-lg rounded-2xl bg-[#0f172a] border border-slate-700 text-white focus:border-purple-500 transition-all" placeholder="娛樂..." value={form.category} onChange={(e) => setForm({...form, category: e.target.value})} /></div>
                   </div>
-                  {formError && (
-                    <div className="text-red-500 text-sm">{formError}</div>
-                  )}
-                  <div className="pt-2 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { setModalOpen(false); setFormError(null); }}
-                      className="px-4 py-2 text-gray-700 border rounded hover:bg-gray-50"
-                      disabled={formLoading}
-                    >
-                      取消
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                      disabled={formLoading}
-                    >
-                      {formLoading ? "新增中..." : "新增"}
-                    </button>
-                  </div>
+                  <div className="pt-6"><button type="submit" disabled={formLoading} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 rounded-2xl text-lg font-bold hover:shadow-[0_0_30px_rgba(147,51,234,0.5)] active:scale-95 transition-all">{formLoading ? "儲存中..." : (isEditing ? "確認修改" : "確認新增")}</button></div>
                 </form>
               </div>
-            </div>
-          )}
-
-          {/* Subscriptions List */}
-          <div className="mt-10">
-            <h3 className="text-lg font-semibold mb-4">訂閱清單</h3>
-            {loading ? (
-              <div className="py-8 text-center text-gray-400">載入中...</div>
-            ) : subscriptions.length === 0 ? (
-              <div className="py-8 text-center text-gray-400">
-                尚未有訂閱項目，點擊上方「新增訂閱項目」開始吧！
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white border rounded">
-                  <thead>
-                    <tr className="bg-blue-50">
-                      <th className="py-2 px-4 text-left text-sm font-medium text-gray-700">
-                        名稱
-                      </th>
-                      <th className="py-2 px-4 text-right text-sm font-medium text-gray-700">
-                        價格
-                      </th>
-                      <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">
-                        週期
-                      </th>
-                      <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">
-                        開始日期
-                      </th>
-                      <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">
-                        分類
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {subscriptions.map((sub) => (
-                      <tr key={sub.id} className="border-b last:border-b-0">
-                        <td className="py-2 px-4">{sub.name}</td>
-                        <td className="py-2 px-4 text-right">NT${Number(sub.price).toLocaleString()}</td>
-                        <td className="py-2 px-4 text-center">
-                          {sub.billing_cycle === "monthly" ? "每月" : "每年"}
-                        </td>
-                        <td className="py-2 px-4 text-center">
-                          {sub.start_date ? new Date(sub.start_date).toLocaleDateString() : "-"}
-                        </td>
-                        <td className="py-2 px-4 text-center">
-                          {sub.category || "-"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            </motion.div>
           </div>
-        </div>
-      </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
