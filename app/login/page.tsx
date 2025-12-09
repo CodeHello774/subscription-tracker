@@ -23,7 +23,6 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        // 指定登入成功後要回來的網址 (就是剛剛做的 callback route)
         redirectTo: `${location.origin}/auth/callback`,
       },
     });
@@ -32,7 +31,6 @@ export default function LoginPage() {
         setError(error.message);
         setIsLoading(false);
     }
-    // 注意：Google 登入會跳轉離開頁面，所以這裡不需要 setLoading(false)
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -60,8 +58,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0f172a]">
-      {/* 背景流動霓虹光 */}
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0f172a] px-4">
+      {/* 背景流動霓虹光 (增加 blur 讓它更柔和) */}
       <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-600/30 rounded-full blur-[120px] animate-pulse"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-blue-600/30 rounded-full blur-[120px] animate-pulse delay-1000"></div>
 
@@ -71,12 +69,14 @@ export default function LoginPage() {
         className="relative z-10 w-full max-w-md"
       >
         <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-2xl blur opacity-75"></div>
-        <div className="relative bg-[#1e293b]/90 backdrop-blur-xl rounded-2xl p-8 border border-white/10 shadow-2xl">
+        {/* 手機版 padding 縮小至 p-6，電腦版 p-8 */}
+        <div className="relative bg-[#1e293b]/90 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-white/10 shadow-2xl">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-purple-500/10 border border-purple-500/30 mb-4 shadow-[0_0_15px_rgba(168,85,247,0.3)]">
               <Wallet className="w-7 h-7 text-purple-400" />
             </div>
-            <h2 className="text-3xl font-bold text-white tracking-wide">
+            {/* 字體大小響應式調整 */}
+            <h2 className="text-2xl md:text-3xl font-bold text-white tracking-wide">
               {isSignUp ? "加入訂閱管家" : "歡迎回來"}
             </h2>
             <p className="text-slate-400 mt-2 text-sm">
@@ -85,10 +85,10 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-6">
-            {/* Google 登入按鈕 */}
+            {/* Google 登入按鈕 (增加點擊區域) */}
             <button
                 onClick={handleGoogleLogin}
-                className="w-full py-3 bg-white hover:bg-gray-50 text-slate-900 rounded-xl font-bold transition-all flex items-center justify-center gap-3 shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full py-3.5 bg-white hover:bg-gray-50 text-slate-900 rounded-xl font-bold transition-all flex items-center justify-center gap-3 shadow-lg hover:scale-[1.02] active:scale-[0.98]"
             >
                 <FcGoogle size={24} />
                 <span>使用 Google 帳號{isSignUp ? "註冊" : "登入"}</span>
@@ -97,11 +97,11 @@ export default function LoginPage() {
             {/* 分隔線 */}
             <div className="relative flex py-2 items-center">
                 <div className="flex-grow border-t border-slate-600"></div>
-                <span className="flex-shrink-0 mx-4 text-slate-500 text-xs">或者使用 Email</span>
+                <span className="flex-shrink-0 mx-4 text-slate-500 text-xs uppercase tracking-wider">或者使用 Email</span>
                 <div className="flex-grow border-t border-slate-600"></div>
             </div>
 
-            {/* 原本的 Email 表單 */}
+            {/* Email 表單 */}
             <form onSubmit={handleAuth} className="space-y-4">
               <div className="space-y-4">
                 <div className="relative group">
@@ -109,7 +109,7 @@ export default function LoginPage() {
                   <input
                     type="email"
                     placeholder="name@example.com"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0f172a] border border-slate-700 text-white placeholder-slate-500 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
+                    className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-[#0f172a] border border-slate-700 text-white placeholder-slate-500 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -120,7 +120,7 @@ export default function LoginPage() {
                   <input
                     type="password"
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#0f172a] border border-slate-700 text-white placeholder-slate-500 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
+                    className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-[#0f172a] border border-slate-700 text-white placeholder-slate-500 focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition-all outline-none"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -159,7 +159,7 @@ export default function LoginPage() {
               className="text-sm text-slate-400 hover:text-white transition-colors"
             >
               {isSignUp ? "已經有帳號了？" : "還沒有帳號？"}{" "}
-              <span className="text-purple-400 ml-1 hover:underline">
+              <span className="text-purple-400 ml-1 hover:underline font-medium">
                 {isSignUp ? "登入" : "立即註冊"}
               </span>
             </button>

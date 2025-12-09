@@ -6,13 +6,52 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, LogOut, Calendar as CalendarIcon, Trash2, X, Wallet, CreditCard, PieChart as PieIcon, Settings, Globe, TrendingUp, RefreshCcw, ChevronDown, Check, Download, Search, Filter, ExternalLink, LayoutGrid, List, Pencil, Zap, User } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { SiNetflix, SiSpotify, SiYoutube, SiOpenai, SiApple, SiAmazon, SiAdobe } from "react-icons/si";
+// 引入穩定的 react-icons
+import { SiNetflix, SiSpotify, SiYoutube, SiOpenai, SiApple, SiAmazon, SiAdobe, SiDiscord, SiNordvpn, SiApplemusic } from "react-icons/si";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Calendar from 'react-calendar';
 
+// --- 自製 SVG 圖示區 (解決外部圖片讀不到的問題) ---
+
 const DisneyPlusIcon = ({ size = 24, color = "currentColor" }: { size?: number, color?: string }) => (
   <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M10.957 12.893h-1.066v2.693H7.954v-2.693H6.876v-1.04h1.078V9.16h1.937v2.693h1.066v1.04zm4.708 2.616h-1.895l-1.053-2.652-.014.004-1.04 2.648H9.728l1.986-4.632-1.815-4.144h1.968l.897 2.456.014-.004.912-2.452h1.94l-3.926 8.776zm4.188-4.628h3.295v1.276h-3.295v3.296h-1.28v-3.296h-3.292v-1.276h3.292V7.585h1.28v3.296z"/></svg>
+);
+
+const GoogleOneIcon = ({ size = 24 }: { size?: number }) => (
+  <svg role="img" viewBox="0 0 24 24" width={size} height={size} xmlns="http://www.w3.org/2000/svg"><path fill="#EA4335" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/><path fill="#34A853" d="M6.5 9.5l7.51-3.22-7.52-3.22 3.22 7.52 3.22 3.22-3.22 7.52-7.52-3.22 7.52-3.22-3.22-3.22z"/><path fill="#4285F4" d="M12 4v16c4.41 0 8-3.59 8-8s-3.59-8-8-8z"/><path fill="#FBBC04" d="M12 4v8.5l6-2.5-6-2.5z"/></svg>
+);
+
+const MicrosoftIcon = ({ size = 24 }: { size?: number }) => (
+  <svg role="img" viewBox="0 0 24 24" width={size} height={size} xmlns="http://www.w3.org/2000/svg"><path fill="#F25022" d="M1 1h10v10H1z"/><path fill="#7FBA00" d="M13 1h10v10H13z"/><path fill="#00A4EF" d="M1 13h10v10H1z"/><path fill="#FFB900" d="M13 13h10v10H13z"/></svg>
+);
+
+const DropboxIcon = ({ size = 24, color = "#0061FF" }: { size?: number, color?: string }) => (
+    <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M6 1.807L0 6.643l6 4.836L12 6.643l6-4.836-6 4.836L6 1.807zm12 9.672l-6 4.836 6 4.836 6-4.836-6-4.836zM6 11.479L0 16.315l6 4.836 6-4.836-6-4.836zM12 17.51l-6 4.836 6 4.836 6-4.836-6-4.836z"/></svg>
+);
+
+const XboxIcon = ({ size = 24, color = "#107C10" }: { size?: number, color?: string }) => (
+    <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M11.98 1.15c-6.17 0-11.16 5.1-11.16 11.41 0 3.86 1.95 7.27 4.93 9.38-.01-.22-.05-.88.13-1.29.56-1.27 3.7-4.34 3.7-4.34s-2.73 3.65-3.36 3.05c-1.28-1.21-3.53-3.43-3.53-3.43s1.94 1.07 3.92 1.25c.6.05 1.29.05 1.83-.25.37-.2.78-.62 1.17-1.27.39.65.8 1.07 1.17 1.27.54.3 1.23.3 1.83.25 1.98-.18 3.92-1.25 3.92-1.25s-2.25 2.22-3.53 3.43c-.63.6 2.1 3.05 2.1 3.05s3.14 3.07 3.7 4.34c.18.41.14 1.07.13 1.29 2.98-2.11 4.93-5.52 4.93-9.38 0-6.31-4.99-11.41-11.16-11.41"/></svg>
+);
+
+const PlayStationIcon = ({ size = 24, color = "#003791" }: { size?: number, color?: string }) => (
+    <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M23.996 11.23a4.705 4.705 0 0 0-2.422-1.127l-5.632-.988a8.21 8.21 0 0 0 .152-1.579c0-2.52-1.996-3.82-3.906-3.82-.965 0-1.848.246-1.848.246l.512 2.398s.71-.168 1.199-.168c.883 0 1.27.469 1.27 1.309 0 .543-.133 1.203-.387 1.805l-4.707-.825L8.2 8.356s1.953.305 1.953 2.05c0 .356-.054.672-.125.961l-4.71 5.922s-.122-1.637.589-2.395c.571-.609 1.348-.714 1.348-.714l-.547-2.52s-2.074.207-3.21 1.418c-1.372 1.457-.966 3.996-.966 3.996s-2.46-.777-2.523-.777c-.032 0-.051.011-.059.035a.154.154 0 0 0 .043.16c.863.856 2.875 2.153 5.957 2.153 5.484 0 8.012-3.11 8.012-3.11s3.754 2.879 7.648 2.37c2.32-.3 2.508-2.612 2.508-2.612s.11.02.13-.075a.16.16 0 0 0-.083-.16l-3.32-.977c2.093-.722 3.14-1.863 3.14-2.863"/></svg>
+);
+
+const SwitchIcon = ({ size = 24, color = "#E60012" }: { size?: number, color?: string }) => (
+    <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M6.35 0C2.85 0 0 2.85 0 6.35v11.3C0 21.15 2.85 24 6.35 24h3.7V0h-3.7zm1.65 4.55a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM13.95 0v24h3.7c3.5 0 6.35-2.85 6.35-6.35V6.35C24 2.85 21.15 0 17.65 0h-3.7zm2.2 16.95a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm4.5-6.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm-3.15-4.55a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zm3.15-4.5a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/></svg>
+);
+
+const CanvaIcon = ({ size = 24, color = "#00C4CC" }: { size?: number, color?: string }) => (
+   <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M7.48 3.535c-2.316.03-3.666 1.706-3.666 3.93 0 1.956.81 2.917 2.196 2.917 1.05 0 2.374-.752 3.844-2.196-1.503-3.606-2.072-4.665-2.373-4.65zM24 10.37c-.36-.93-1.412-1.2-2.193-1.2-1.743 0-3.337 1.052-4.42 2.525.602-3.156.42-5.02-1.443-5.02-1.743 0-3.337 1.744-4.54 3.758.12-2.615-.45-4.237-2.645-4.237C5.97 6.196 3.685 9.082 1.34 14.162c-.39.842-1.323 3.397-.57 3.727.87.39 1.834-1.233 2.194-2.044.872-1.923 1.984-4.327 3.637-5.71-.54 2.224-1.232 4.93-.3 5.41.932.482 2.014-.54 2.825-1.563-.33 1.353-.6 2.435.3 2.766.72.27 1.954-.42 2.825-1.383-.39 1.503-.992 3.697-.24 4.027.69.3 2.524-1.112 3.245-2.434l-.06 2.464c.03.662 1.022.632 1.443-.09.3-.51.48-1.02.48-1.533 0-1.894-1.112-4.148-2.615-5.922 1.203-1.623 2.014-2.314 2.434-2.314.18 0 .27.06.33.15.24.45-.33 2.043-.69 2.734-.33.662-.752 1.624.15 2.013.78.33 2.553-1.532 2.943-2.344.33-.78 1.022-2.373.48-2.583zm-14.73 3.187c-1.383 1.232-2.224 1.773-2.584 1.773-.24 0-.3-.15-.24-.48.24-1.082 1.112-2.826 2.824-4.51.51-1.352 1.022-2.614 1.382-3.336 1.052-2.014 2.194-2.735 3.036-1.563.3.42.06 1.773-.51 3.426l-3.907 4.69zM15.4 12.083c-.33 1.503-1.082 3.186-2.224 4.81-1.322 1.833-2.193 2.133-2.434 2.013-.39-.18.3-2.584.812-4.147.81-2.404 1.803-4.537 2.855-5.168.42-.27.992.57 1.052.75.12.3.06 1.082-.06 1.743z"/></svg>
+);
+
+const NotionIcon = ({ size = 24, color = "currentColor" }: { size?: number, color?: string }) => (
+   <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M4.459 4.208c.746.606 1.026.56 2.67.839l.067.011c1.242.235 1.144.154 1.144.57v13.085c0 .35-.205.589-.784.589-.35 0-.746-.112-1.129-.336l-.168-.103c-.615-.392-.764-.475-1.556-.252-.773.215-.81.289-.81.606 0 .391.242.849 2.051 1.025 1.836.177 3.589-.252 5.09-1.287l.037-.028c.345-.242.718-.513.718-.848V5.84l5.125 10.745v-9.67c0-.522-.167-.653-2.33-.876-.41-.037-.439-.065-.439-.42 0-.326.159-.699 1.95-.597 1.25.075 3.057.28 3.551.354.495.075.457.009.457.485v12.274c0 .41-.121.737-.624.96-.54.243-1.072.075-1.52-.373l-6.302-12.836v9.316c0 .54.196.718 2.274.96.448.056.467.075.467.439 0 .336-.187.69-1.951.588-1.557-.093-3.234-.354-3.7-.42-.467-.065-.448 0-.448-.476V5.448c0-.42.065-.634 1.157-.96 1.492-.448 3.658-.924 4.544-.28z"/></svg>
+);
+
+const XIcon = ({ size = 24, color = "currentColor" }: { size?: number, color?: string }) => (
+    <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
 );
 
 const SUPPORTED_CURRENCIES = [
@@ -25,13 +64,25 @@ const POPULAR_SERVICES = [
   { name: "Spotify", icon: <SiSpotify size={24} color="#1DB954"/>, category: "音樂", color: "#1DB954", cancelUrl: "https://support.spotify.com/tw/article/cancel-premium/", plans: [{ name: "個人", price: 149 }, { name: "雙人", price: 198 }, { name: "家庭", price: 268 }, { name: "學生", price: 75 }] },
   { name: "Youtube", icon: <SiYoutube size={24} color="#FF0000"/>, category: "娛樂", color: "#FF0000", cancelUrl: "https://www.youtube.com/paid_memberships", plans: [{ name: "個人", price: 199 }, { name: "家庭", price: 399 }, { name: "學生", price: 119 }] },
   { name: "Disney+", icon: <DisneyPlusIcon size={24} color="#113CCF"/>, category: "娛樂", color: "#113CCF", cancelUrl: "https://help.disneyplus.com/", plans: [{ name: "標準", price: 270 }, { name: "高級", price: 320 }] },
-  { name: "ChatGPT", icon: <SiOpenai size={24} color="#74AA9C"/>, category: "生產力", color: "#74AA9C", cancelUrl: "https://help.openai.com/en/articles/7232896-how-do-i-cancel-my-subscription", plans: [{ name: "Plus (USD)", price: 650 }, { name: "Team (USD)", price: 960 }] },
-  { name: "iCloud", icon: <SiApple size={24} color="#FFFFFF"/>, category: "雲端", color: "#FFFFFF", cancelUrl: "https://support.apple.com/zh-tw/HT207594", plans: [{name: "50GB", price: 30}, {name: "200GB", price: 90}, {name: "2TB", price: 300}] },
-  { name: "AWS", icon: <SiAmazon size={24} color="#FF9900"/>, category: "雲端", color: "#FF9900", cancelUrl: "https://aws.amazon.com/", plans: [{name: "預算", price: 500}] },
-  { name: "Adobe", icon: <SiAdobe size={24} color="#FF0000"/>, category: "設計", color: "#FF0000", cancelUrl: "https://helpx.adobe.com/tw/manage-account/using/cancel-subscription.html", plans: [{name: "攝影計畫", price: 326}, {name: "完整全家桶", price: 1700}] },
+  { name: "Apple One", icon: <SiApple size={24} color="#FFFFFF"/>, category: "生態系", color: "#FFFFFF", cancelUrl: "https://support.apple.com/zh-tw/HT202039", plans: [{name: "個人", price: 390}, {name: "家庭", price: 490}] },
+  { name: "iCloud+", icon: <SiApple size={24} color="#FFFFFF"/>, category: "雲端", color: "#FFFFFF", cancelUrl: "https://support.apple.com/zh-tw/HT207594", plans: [{name: "50GB", price: 30}, {name: "200GB", price: 90}, {name: "2TB", price: 300}] },
+  { name: "Google One", icon: <GoogleOneIcon size={24}/>, category: "雲端", color: "#4285F4", cancelUrl: "https://one.google.com/settings", plans: [{name: "100GB", price: 65}, {name: "200GB", price: 90}, {name: "2TB", price: 330}] },
+  { name: "Microsoft 365", icon: <MicrosoftIcon size={24}/>, category: "生產力", color: "#EA4335", cancelUrl: "https://account.microsoft.com/services", plans: [{name: "個人版", price: 219}, {name: "家用版", price: 319}] },
+  { name: "Dropbox", icon: <DropboxIcon size={24}/>, category: "雲端", color: "#0061FF", cancelUrl: "https://www.dropbox.com/account/plan", plans: [{name: "Plus", price: 350}, {name: "Family", price: 550}] },
+  { name: "ChatGPT", icon: <SiOpenai size={24} color="#74AA9C"/>, category: "AI", color: "#74AA9C", cancelUrl: "https://help.openai.com/en/articles/7232896-how-do-i-cancel-my-subscription", plans: [{ name: "Plus (USD)", price: 650 }, { name: "Team (USD)", price: 960 }] },
+  { name: "Canva", icon: <CanvaIcon size={24}/>, category: "設計", color: "#00C4CC", cancelUrl: "https://www.canva.com/settings/billing", plans: [{ name: "Pro", price: 300 }] },
+  { name: "Notion", icon: <NotionIcon size={24} color="#FFFFFF"/>, category: "生產力", color: "#FFFFFF", cancelUrl: "https://www.notion.so/settings/billing", plans: [{ name: "Plus (USD)", price: 250 }, { name: "AI Addon (USD)", price: 250 }] },
+  { name: "Adobe CC", icon: <SiAdobe size={24} color="#FF0000"/>, category: "設計", color: "#FF0000", cancelUrl: "https://helpx.adobe.com/tw/manage-account/using/cancel-subscription.html", plans: [{name: "攝影計畫", price: 326}, {name: "完整全家桶", price: 1700}] },
+  { name: "Xbox Game Pass", icon: <XboxIcon size={24}/>, category: "遊戲", color: "#107C10", cancelUrl: "https://account.microsoft.com/services", plans: [{name: "PC", price: 199}, {name: "Core", price: 199}, {name: "Ultimate", price: 338}] },
+  { name: "PlayStation Plus", icon: <PlayStationIcon size={24}/>, category: "遊戲", color: "#003791", cancelUrl: "https://store.playstation.com/", plans: [{name: "基本", price: 198}, {name: "升級", price: 298}, {name: "高級", price: 338}] },
+  { name: "Nintendo Online", icon: <SwitchIcon size={24}/>, category: "遊戲", color: "#E60012", cancelUrl: "https://ec.nintendo.com/", plans: [{name: "個人 (年)", price: 750}, {name: "家庭 (年)", price: 1300}] },
+  { name: "Discord Nitro", icon: <SiDiscord size={24} color="#5865F2"/>, category: "社交", color: "#5865F2", cancelUrl: "https://support.discord.com/hc/en-us/articles/360039652152-Nitro-Billing", plans: [{name: "Basic (USD)", price: 90}, {name: "Nitro (USD)", price: 300}] },
+  { name: "X Premium", icon: <XIcon size={24}/>, category: "社交", color: "#FFFFFF", cancelUrl: "https://twitter.com/settings/monetization", plans: [{name: "Basic", price: 90}, {name: "Premium", price: 240}, {name: "Premium+", price: 480}] },
+  { name: "NordVPN", icon: <SiNordvpn size={24} color="#4687FF"/>, category: "工具", color: "#4687FF", cancelUrl: "https://my.nordaccount.com/billing/", plans: [{name: "Standard", price: 400}] },
+  { name: "Apple Music", icon: <SiApplemusic size={24} color="#FC3C44"/>, category: "音樂", color: "#FC3C44", cancelUrl: "https://music.apple.com/account", plans: [{name: "個人", price: 165}, {name: "家庭", price: 265}] },
 ];
 
-const COLORS = ['#c084fc', '#60a5fa', '#34d399', '#f472b6', '#fbbf24', '#a78bfa'];
+const COLORS = ['#c084fc', '#60a5fa', '#34d399', '#f472b6', '#fbbf24', '#a78bfa', '#f87171', '#fb923c'];
 
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null);
@@ -439,7 +490,7 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* Modal (只留這一份) */}
+      {/* Modal - 支援新增與編輯 */}
       <AnimatePresence>
         {modalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
