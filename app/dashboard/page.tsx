@@ -11,7 +11,6 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Calendar from 'react-calendar';
 
-// 自製 Disney+ 圖標
 const DisneyPlusIcon = ({ size = 24, color = "currentColor" }: { size?: number, color?: string }) => (
   <svg role="img" viewBox="0 0 24 24" width={size} height={size} fill={color} xmlns="http://www.w3.org/2000/svg"><path d="M10.957 12.893h-1.066v2.693H7.954v-2.693H6.876v-1.04h1.078V9.16h1.937v2.693h1.066v1.04zm4.708 2.616h-1.895l-1.053-2.652-.014.004-1.04 2.648H9.728l1.986-4.632-1.815-4.144h1.968l.897 2.456.014-.004.912-2.452h1.94l-3.926 8.776zm4.188-4.628h3.295v1.276h-3.295v3.296h-1.28v-3.296h-3.292v-1.276h3.292V7.585h1.28v3.296z"/></svg>
 );
@@ -77,10 +76,8 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
       setUser(user);
-      
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       if (profile) setUserProfile(profile);
-      
       fetchSubscriptions(user.id);
     };
     init();
@@ -431,7 +428,6 @@ export default function DashboardPage() {
                         {cancelUrl && (
                             <a href={cancelUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-yellow-400 transition-colors p-2 hover:bg-white/5 rounded-lg" title="如何取消訂閱？"><ExternalLink size={16} /></a>
                         )}
-                        {/* 編輯按鈕 */}
                         <button onClick={(e) => { e.stopPropagation(); handleEditClick(sub); }} className="text-slate-600 hover:text-blue-400 transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90" title="編輯"><Pencil size={16} /></button>
                         <button onClick={(e) => { e.stopPropagation(); handleDelete(sub.id); }} className="text-slate-600 hover:text-red-400 transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90" title="刪除"><Trash2 size={16} /></button>
                     </div>
@@ -441,9 +437,9 @@ export default function DashboardPage() {
             </AnimatePresence>
           </div>
         )}
-      </AnimatePresence>
+      </main>
 
-      {/* Modal - 支援新增與編輯 */}
+      {/* Modal (只留這一份) */}
       <AnimatePresence>
         {modalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -460,7 +456,7 @@ export default function DashboardPage() {
                     {POPULAR_SERVICES.map((service) => (
                       <button key={service.name} onClick={() => handleServiceClick(service)} className={`flex-shrink-0 flex flex-col items-center gap-3 group min-w-[80px] relative`}>
                         <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center text-slate-400 group-hover:scale-110 transition-all shadow-lg ${selectedService?.name === service.name ? 'bg-purple-600/20 border-purple-500 text-white' : 'bg-[#0f172a] border-white/10 group-hover:border-purple-500 group-hover:text-white'}`}>
-                            {React.cloneElement(service.icon as React.ReactElement, { size: 28 })}
+                            {React.cloneElement(service.icon as any, { size: 28 })}
                         </div>
                         <span className={`text-sm transition-colors ${selectedService?.name === service.name ? 'text-purple-300 font-bold' : 'text-slate-400 group-hover:text-white'}`}>{service.name}</span>
                         {selectedService?.name === service.name && <div className="absolute -bottom-2 w-1.5 h-1.5 bg-purple-500 rounded-full"></div>}
