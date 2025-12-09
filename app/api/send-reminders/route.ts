@@ -2,16 +2,20 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// 使用 Service Role Key 以讀取所有使用者的資料
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// 移除這裡的全域初始化，避免 Build 失敗
+// const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function GET() {
   try {
+    // ✅ 修正：將初始化移入函式內部 (Runtime 才執行)
+    // 這樣 Build 的時候就不會因為找不到 KEY 而報錯
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // 1. 找出「三天後」要扣款的訂閱
     const threeDaysLater = new Date();
     threeDaysLater.setDate(threeDaysLater.getDate() + 3);
@@ -50,21 +54,19 @@ export async function GET() {
 
     return NextResponse.json({ success: true, count: sentCount });
   } catch (err: any) {
+    console.error('API Error:', err); // 建議加一行 Log 方便除錯
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// 🎨 這裡就是那個「完美且專業」的深色 Email 模板
+// HTML 模板保持不變
 function getEmailTemplate(serviceName: string, price: number, date: string) {
   return `
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>訂閱扣款提醒</title>
+  <meta charset="utf-8">
   <style>
-    /* 為了相容性，我們盡量寫 Inline CSS，但這裡放一些重置樣式 */
     body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0f172a; margin: 0; padding: 0; }
     .container { max-width: 600px; margin: 0 auto; background-color: #0f172a; }
     .card { background-color: #1e293b; border-radius: 16px; overflow: hidden; border: 1px solid #334155; }
@@ -118,7 +120,7 @@ function getEmailTemplate(serviceName: string, price: number, date: string) {
               </table>
 
               <div style="text-align: center;">
-                <a href="http://localhost:3000/dashboard" class="btn">前往儀表板查看</a>
+                <a href="https://your-website-url.com/dashboard" class="btn">前往儀表板查看</a>
                 <p style="margin-top: 16px; font-size: 14px; color: #64748b;">
                   如果不打算續約，請記得前往該服務官網取消。
                 </p>
