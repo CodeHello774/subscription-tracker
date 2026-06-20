@@ -1,73 +1,79 @@
 # 訂閱管家 (Subscription Tracker)
 
-集中管理 Netflix、Spotify 等所有訂閱支出，自動計算每月花費、多幣別換算，掌握你的財務自由。
+掌握每一筆訂閱支出。Netflix、Spotify、Disney+ 到 iCloud、Microsoft 365 — 一個地方集中管理，自動計算每月開銷，支援多幣別即時換算，以及預算管控、試用到期提醒、取消排毒挑戰等進階功能。
 
-![Dashboard Preview](public/dashboard-preview.png)
+![Dashboard Preview](public/screenshot.png)
 
-## 功能
+## Features
 
-- **📊 儀表板** — 每月總支出、類別佔比圓餅圖、即時匯率
-- **🌍 多幣別** — 支援 TWD/USD/JPY/KRW/CNY/EUR，即時換算
-- **📅 行事曆** — 月曆視圖一眼看出扣款日
-- **🔔 通知設定** — 預設關閉，可在設定中開啟
-- **📥 CSV 匯出** — 一鍵匯出報表
-- **💾 本地儲存** — 所有資料存在瀏覽器 localStorage，無需註冊
+- **儀表板** — 每月總支出、類別佔比圓餅圖、6 個月支出預測曲線、即時匯率牌價
+- **預算管控** — 設定每月上限，超支自動警示，進度條一目瞭然
+- **多幣別** — TWD / USD / JPY / KRW / CNY / EUR，Exchange Rate API 即時換算
+- **試用 / 優惠追蹤** — 輸入試用到期日或促銷截止日，卡片上自動倒數計時（<3 天醒目提示）
+- **使用頻率追蹤** — 記錄最後使用日期，超過 60 天未用自動標示為閒置訂閱
+- **分攤計算** — 與家人朋友共享的訂閱，輸入共享人名單，自動算出每人分攤金額
+- **年度回顧** — 年支出總額、月均、類別長條圖，一鍵檢視
+- **排毒挑戰** — 設定目標取消數量，儀表板顯示進度條，達標獲得榮譽獎盃
+- **綑綁偵測** — 自動比對 Apple One、Microsoft 365、Google One 等組合，提示合併建議
+- **行事曆** — 月曆視覺化顯示所有扣款日期
+- **取消引導** — 每張卡片直接連結各平台的取消訂閱頁面
+- **通知設定** — 可設定 Email 扣款提醒（需自行配置 Supabase + Resend）
+- **CSV 匯出** — 一鍵匯出報表，含多幣別換算金額
 
 ## Tech Stack
 
-| 層 | 技術 |
-|---|------|
-| 框架 | Next.js 16 + React 19 |
-| 語言 | TypeScript strict |
-| 樣式 | Tailwind CSS 3.4 |
-| 動畫 | Framer Motion |
-| 圖表 | Recharts |
-| 圖示 | Lucide React + 自訂 SVG (public/icons/) |
-| 圖標 | 27 個官方品牌 SVG 圖示 |
-| 字體 | Plus Jakarta Sans (next/font) |
-| 資料 | localStorage |
-| 匯率 | Exchange Rate API (open.er-api.com) |
+| Layer | Tech |
+|-------|------|
+| Framework | Next.js 16 + React 19 |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS 3.4 |
+| Animation | Framer Motion |
+| Charts | Recharts |
+| Icons | Lucide React + 27 official brand SVGs |
+| Font | Plus Jakarta Sans (next/font) |
+| Storage | localStorage |
+| Exchange Rates | open.er-api.com |
 
-## 快速開始
+## Getting Started
 
 ```bash
 npm install
 npm run dev
 ```
 
-開啟 `http://localhost:3000`
+Open `http://localhost:3000`
 
-## 命令
+### Commands
 
-| 命令 | 用途 |
-|------|------|
-| `npm run dev` | 開發伺服器 |
-| `npm run build` | 建置 + TypeScript 檢查 |
-| `npm run lint` | ESLint (flat config) |
-| `npm start` | 正式伺服器 |
+| Command | Action |
+|---------|--------|
+| `npm run dev` | Development server |
+| `npm run build` | Build + TypeScript check |
+| `npm run lint` | ESLint (flat config, v9) |
+| `npm start` | Production server |
 
-## 設計
+## Design
 
-Emerald Glass 風格 — 深色背景 (`#09090b`)、玻璃卡片 (`#18181b`)、主色 emerald-500／cyan-500。
+Gold Glass 風格 — 深色底 (`#0A0A0A`)、玻璃感卡片 (`#161616`)、主色 `#D4A574` 金屬暖金。
 
-品牌圖示以 `public/icons/*.svg` 存放，使用官方品牌路徑，僅針對暗色背景調整填色。所有圖示以 `<Image width={24} height={24}>` 統一渲染。
+所有品牌圖示以官方 SVG 存放於 `public/icons/`，使用 `next/image` 渲染，針對深色背景手動調整暗色圖示的填色。
 
 ## 專案結構
 
 ```
 ├── app/
-│   ├── api/send-reminders/   # 寄信 API（需 Supabase + Resend env）
-│   ├── dashboard/            # 主控台
-│   ├── settings/             # 個人設定
-│   ├── globals.css           # 全域樣式
-│   └── layout.tsx            # 佈局
+│   ├── api/send-reminders/   # Email 提醒 API（需 Supabase + Resend env）
+│   ├── dashboard/             # 儀表板主頁
+│   ├── settings/              # 設定頁
+│   ├── globals.css
+│   └── layout.tsx
 ├── components/
-│   └── SubscriptionCard.tsx  # 訂閱卡片元件 + POPULAR_SERVICES
+│   └── SubscriptionCard.tsx   # 訂閱卡片（含倒數、分攤、使用追蹤）
 ├── lib/
-│   └── storage.ts            # localStorage 讀寫層
-├── public/icons/             # 27 個官方品牌 SVG
+│   └── storage.ts             # localStorage 存取層
+├── public/icons/              # 27 個官方品牌 SVG
 └── types/
-    └── index.ts              # Subscription interface
+    └── index.ts               # Subscription, BudgetSettings, DetoxChallenge
 ```
 
 ## License

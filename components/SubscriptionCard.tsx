@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { CalendarIcon, ExternalLink, Pencil, Trash2, Bell, BellOff } from "lucide-react";
+import { CalendarIcon, ExternalLink, Pencil, Trash2, Bell, BellOff, Clock, Tag, Users, Gift, Zap, AlertTriangle } from "lucide-react";
 import type { Subscription } from "@/types";
 
 const img = (src: string) => <Image src={src} alt="" width={24} height={24} className="object-contain" unoptimized />;
@@ -51,6 +51,20 @@ function getCancelUrl(name: string) {
 
 export { POPULAR_SERVICES };
 
+function daysUntil(dateStr: string): number {
+  const target = new Date(dateStr);
+  const now = new Date();
+  const diff = target.getTime() - now.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+function daysSince(dateStr: string): number {
+  const target = new Date(dateStr);
+  const now = new Date();
+  const diff = now.getTime() - target.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
 interface SubscriptionCardProps {
   subscription: Subscription;
   index: number;
@@ -74,6 +88,22 @@ export default function SubscriptionCard({
   const isIcon = React.isValidElement(iconOrLetter) && iconOrLetter.type !== 'div';
   const cancelUrl = getCancelUrl(sub.name);
 
+  const trialDaysLeft = sub.trial_end_date ? daysUntil(sub.trial_end_date) : null;
+  const promoDaysLeft = sub.promo_end_date ? daysUntil(sub.promo_end_date) : null;
+  const lastUsedDays = sub.last_used_date ? daysSince(sub.last_used_date) : null;
+
+  const monthlyPrice = sub.billing_cycle === 'yearly' ? Math.round(sub.price / 12) : sub.price;
+  const yearlyPrice = sub.billing_cycle === 'monthly' ? Math.round(sub.price * 12) : sub.price;
+  const annualSavings = yearlyPrice - monthlyPrice * 12;
+  const savingsPct = annualSavings > 0 ? Math.round((annualSavings / yearlyPrice) * 100) : 0;
+
+  const trialExpiring = trialDaysLeft !== null && trialDaysLeft <= 3 && trialDaysLeft >= 0;
+  const trialExpired = trialDaysLeft !== null && trialDaysLeft < 0;
+  const promoExpiring = promoDaysLeft !== null && promoDaysLeft <= 7 && promoDaysLeft >= 0;
+
+  const sharedCount = sub.shared_with?.length || 0;
+  const costPerPerson = sharedCount > 0 ? Math.round(monthlyPrice / (sharedCount + 1)) : null;
+
   return (
     <motion.div
       key={sub.id}
@@ -87,6 +117,19 @@ export default function SubscriptionCard({
       }}
       className="group relative bg-[#161616] rounded-2xl p-6 border border-white/5 hover:border-[#D4A574]/50 transition-all duration-300 flex flex-col justify-between"
     >
+      {(trialExpiring || trialExpired) && (
+        <div className={`absolute -top-2 -right-2 z-10 px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1 ${trialExpired ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+          <AlertTriangle size={12} />
+          {trialExpired ? '試用已到期' : `試用倒數 ${trialDaysLeft} 天`}
+        </div>
+      )}
+      {promoExpiring && !trialExpiring && (
+        <div className="absolute -top-2 -right-2 z-10 px-3 py-1 rounded-full text-xs font-bold shadow-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center gap-1">
+          <Tag size={12} />
+          {`優惠 ${promoDaysLeft} 天後到期`}
+        </div>
+      )}
+
       <div>
         <div className="flex justify-between items-start mb-5">
           {isIcon ? (
@@ -108,6 +151,39 @@ export default function SubscriptionCard({
           <span className="text-sm text-zinc-500">
             / {sub.billing_cycle === 'monthly' ? '月' : '年'}
           </span>
+        </div>
+
+        <div className="space-y-2 mb-4">
+          {trialDaysLeft !== null && trialDaysLeft > 0 && !trialExpiring && (
+            <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <Gift size={12} className="text-emerald-400" />
+              試用期剩 {trialDaysLeft} 天
+            </div>
+          )}
+          {promoDaysLeft !== null && promoDaysLeft > 0 && !promoExpiring && (
+            <div className="flex items-center gap-2 text-xs text-zinc-400">
+              <Tag size={12} className="text-purple-400" />
+              優惠價剩 {promoDaysLeft} 天
+            </div>
+          )}
+          {sub.billing_cycle === 'yearly' && savingsPct > 0 && (
+            <div className="flex items-center gap-2 text-xs text-emerald-400">
+              <Zap size={12} />
+              年繳省 {savingsPct}%（月均 {currentSymbol} {convertPrice(monthlyPrice)}）
+            </div>
+          )}
+          {lastUsedDays !== null && (
+            <div className={`flex items-center gap-2 text-xs ${lastUsedDays > 60 ? 'text-red-400' : 'text-zinc-400'}`}>
+              <Clock size={12} />
+              {lastUsedDays > 60 ? `${Math.floor(lastUsedDays / 30)} 個月未使用` : `${lastUsedDays} 天前使用`}
+            </div>
+          )}
+          {sharedCount > 0 && costPerPerson !== null && (
+            <div className="flex items-center gap-2 text-xs text-blue-400">
+              <Users size={12} />
+              與 {sharedCount} 人分攤 — 每人 {currentSymbol} {convertPrice(costPerPerson)}/月
+            </div>
+          )}
         </div>
       </div>
 

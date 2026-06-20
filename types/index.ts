@@ -9,4 +9,20 @@ export interface Subscription {
   category: string;
   created_at: string;
   notify?: boolean;
+  trial_end_date?: string;
+  promo_end_date?: string;
+  promo_price?: number;
+  last_used_date?: string;
+  shared_with?: { name: string; contribution: number }[];
+}
+
+export interface BudgetSettings {
+  amount: number;
+  enabled: boolean;
+}
+
+export interface DetoxChallenge {
+  target: number;
+  start_date: string;
+  current: number;
 }

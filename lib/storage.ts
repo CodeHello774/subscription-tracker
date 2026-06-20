@@ -1,18 +1,9 @@
+import type { Subscription, BudgetSettings, DetoxChallenge } from '@/types';
+
 const SUBSCRIPTIONS_KEY = 'subscription_tracker_subs';
 const PROFILE_KEY = 'subscription_tracker_profile';
-
-export interface Subscription {
-  id: string;
-  name: string;
-  price: number;
-  currency: string;
-  billing_cycle: string;
-  start_date: string;
-  next_payment_date: string;
-  category: string;
-  created_at: string;
-  notify?: boolean;
-}
+const BUDGET_KEY = 'subscription_tracker_budget';
+const DETOX_KEY = 'subscription_tracker_detox';
 
 export function getSubscriptions(): Subscription[] {
   if (typeof window === 'undefined') return [];
@@ -89,5 +80,33 @@ export function saveNotificationSettings(settings: NotificationSettings) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(NOTIFY_KEY, JSON.stringify(settings));
+  } catch {}
+}
+
+export function getBudgetSettings(): BudgetSettings {
+  if (typeof window === 'undefined') return { amount: 100, enabled: false };
+  try {
+    return JSON.parse(localStorage.getItem(BUDGET_KEY) || '{"amount":100,"enabled":false}');
+  } catch { return { amount: 100, enabled: false }; }
+}
+
+export function saveBudgetSettings(settings: BudgetSettings) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(BUDGET_KEY, JSON.stringify(settings));
+  } catch {}
+}
+
+export function getDetoxChallenge(): DetoxChallenge {
+  if (typeof window === 'undefined') return { target: 0, start_date: '', current: 0 };
+  try {
+    return JSON.parse(localStorage.getItem(DETOX_KEY) || '{"target":0,"start_date":"","current":0}');
+  } catch { return { target: 0, start_date: '', current: 0 }; }
+}
+
+export function saveDetoxChallenge(challenge: DetoxChallenge) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(DETOX_KEY, JSON.stringify(challenge));
   } catch {}
 }

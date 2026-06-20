@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Calendar as CalendarIcon, X, Wallet, CreditCard, PieChart as PieIcon, Globe, RefreshCcw, ChevronDown, Check, Download, Search, Filter, LayoutGrid, List, Zap, Settings } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { Plus, Calendar as CalendarIcon, X, Wallet, CreditCard, PieChart as PieIcon, Globe, RefreshCcw, ChevronDown, Check, Download, Search, Filter, LayoutGrid, List, Zap, Settings, TrendingUp, Gift, Tag, Users, AlertTriangle, Target, Sparkles, BarChart3, Clock, Trophy, Rocket, Crown } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line } from 'recharts';
 import SubscriptionCard, { POPULAR_SERVICES } from "@/components/SubscriptionCard";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -13,8 +13,10 @@ import {
   getSubscriptions, addSubscription,
   updateSubscription, deleteSubscription,
   getProfile, getNotificationSettings,
+  getBudgetSettings,
+  getDetoxChallenge,
 } from "@/lib/storage";
-import type { Subscription } from "@/types";
+import type { Subscription, BudgetSettings, DetoxChallenge } from "@/types";
 
 const SUPPORTED_CURRENCIES = [
   { code: 'TWD', symbol: 'NT$', flag: '🇹🇼' }, { code: 'USD', symbol: '$', flag: '🇺🇸' }, { code: 'JPY', symbol: '¥', flag: '🇯🇵' },
@@ -22,6 +24,48 @@ const SUPPORTED_CURRENCIES = [
 ];
 
 const COLORS = ['#D4A574', '#A3A3A3', '#E8D5B7', '#808080', '#C4956A', '#B0B0B0', '#F0E4D0', '#666666'];
+
+function generateForecast(subs: Subscription[], months: number) {
+  const now = new Date();
+  const data: { month: string; amount: number }[] = [];
+  for (let i = 0; i < months; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const label = `${d.getMonth() + 1}月`;
+    let total = 0;
+    for (const sub of subs) {
+      const price = Number(sub.price);
+      if (sub.billing_cycle === 'monthly') {
+        total += price;
+      } else {
+        const start = new Date(sub.start_date);
+        const monthsSinceStart = (d.getFullYear() - start.getFullYear()) * 12 + (d.getMonth() - start.getMonth());
+        if (monthsSinceStart % 12 === 0) total += price;
+      }
+    }
+    data.push({ month: label, amount: total });
+  }
+  return data;
+}
+
+function detectBundles(subs: Subscription[]) {
+  const bundles: { name: string; members: string[]; totalPrice: number }[] = [];
+  const bundleMap: Record<string, string[]> = {
+    'Apple One': ['Apple Music', 'iCloud+', 'Apple TV+'],
+    'Microsoft 365': ['OneDrive', 'Skype', 'Teams'],
+    'Google One': ['YouTube Premium', 'Google Drive', 'Google Photos'],
+  };
+  for (const [bundleName, services] of Object.entries(bundleMap)) {
+    const members = subs.filter(s => services.some(service => s.name.toLowerCase().includes(service.toLowerCase())));
+    if (members.length >= 2) {
+      bundles.push({
+        name: bundleName,
+        members: members.map(m => m.name),
+        totalPrice: members.reduce((sum, m) => sum + Number(m.price), 0),
+      });
+    }
+  }
+  return bundles;
+}
 
 export default function DashboardPage() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -38,7 +82,7 @@ export default function DashboardPage() {
   const [editId, setEditId] = useState<string | null>(null);
 
   const [selectedService, setSelectedService] = useState<{ name: string; color: string; icon: React.ReactNode; plans?: { name: string; price: number }[]; category: string } | null>(null);
-  const [form, setForm] = useState({ name: "", price: "", billing_cycle: "monthly", start_date: "", category: "" });
+  const [form, setForm] = useState({ name: "", price: "", billing_cycle: "monthly", start_date: "", category: "", trial_end_date: "", promo_end_date: "", promo_price: "", last_used_date: "", shared_with: "" });
   const [formLoading, setFormLoading] = useState(false);
 
   const [currency, setCurrency] = useState('TWD');
@@ -51,10 +95,23 @@ export default function DashboardPage() {
   const [rightView, setRightView] = useState<'chart' | 'calendar'>('chart');
 
   const [displayName, setDisplayName] = useState("");
+  const [budget, setBudget] = useState<BudgetSettings>({ amount: 100, enabled: false });
+  const [detox, setDetox] = useState<DetoxChallenge>({ target: 0, start_date: '', current: 0 });
+
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setNow(Date.now()), 0);
+    const interval = setInterval(() => setNow(Date.now()), 60000);
+    return () => { clearTimeout(t1); clearInterval(interval); };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setDisplayName(getProfile().displayName || "");
+      setBudget(getBudgetSettings());
+      setDetox(getDetoxChallenge());
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -70,7 +127,6 @@ export default function DashboardPage() {
     };
     fetchRates();
   }, []);
-
 
   const getConvertedValue = useCallback((priceTWD: number) => {
     const rate = exchangeRates[currency] || 1;
@@ -106,12 +162,23 @@ export default function DashboardPage() {
     return convertPrice(totalTWD);
   }, [subscriptions, convertPrice]);
 
+  const totalMonthlyCost = useMemo(() => {
+    return subscriptions.reduce((acc, sub) => {
+      const price = Number(sub.price);
+      return acc + (sub.billing_cycle === 'yearly' ? Math.round(price / 12) : price);
+    }, 0);
+  }, [subscriptions]);
+
   const mostExpensive = useMemo(() => {
     if (subscriptions.length === 0) return null;
     return subscriptions.reduce((max, sub) =>
       Number(sub.price) > Number(max.price) ? sub : max
     );
   }, [subscriptions]);
+
+  const budgetPct = budget.enabled && budget.amount > 0
+    ? Math.min(100, Math.round((totalMonthlyCost / budget.amount) * 100))
+    : 0;
 
   const filteredSubscriptions = subscriptions.filter(sub => {
     const matchesSearch = sub.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -139,10 +206,23 @@ export default function DashboardPage() {
     setFormLoading(true);
     const nextDate = calculateNextPayment(form.start_date, form.billing_cycle);
 
+    const parsed: Record<string, unknown> = {
+      name: form.name, price: parseFloat(form.price), billing_cycle: form.billing_cycle,
+      start_date: form.start_date, category: form.category, currency: 'TWD', next_payment_date: nextDate,
+    };
+
+    if (form.trial_end_date) parsed.trial_end_date = form.trial_end_date;
+    if (form.promo_end_date) parsed.promo_end_date = form.promo_end_date;
+    if (form.promo_price) parsed.promo_price = parseFloat(form.promo_price);
+    if (form.last_used_date) parsed.last_used_date = form.last_used_date;
+    if (form.shared_with) {
+      parsed.shared_with = form.shared_with.split(',').map(s => s.trim()).filter(Boolean).map(name => ({ name, contribution: 0 }));
+    }
+
     if (isEditing && editId) {
-      updateSubscription(editId, { ...form, price: parseFloat(form.price), currency: 'TWD', next_payment_date: nextDate });
+      updateSubscription(editId, parsed as Partial<Subscription>);
     } else {
-      addSubscription({ ...form, price: parseFloat(form.price), currency: 'TWD', next_payment_date: nextDate });
+      addSubscription(parsed as Omit<Subscription, 'id' | 'created_at'>);
     }
 
     setFormLoading(false);
@@ -159,7 +239,15 @@ export default function DashboardPage() {
   const handleEditClick = (sub: Subscription) => {
     setIsEditing(true);
     setEditId(sub.id);
-    setForm({ name: sub.name, price: sub.price.toString(), billing_cycle: sub.billing_cycle, start_date: sub.start_date, category: sub.category || "" });
+    setForm({
+      name: sub.name, price: sub.price.toString(), billing_cycle: sub.billing_cycle,
+      start_date: sub.start_date, category: sub.category || "",
+      trial_end_date: sub.trial_end_date || '',
+      promo_end_date: sub.promo_end_date || '',
+      promo_price: sub.promo_price?.toString() || '',
+      last_used_date: sub.last_used_date || '',
+      shared_with: sub.shared_with?.map(s => s.name).join(', ') || '',
+    });
     const service = POPULAR_SERVICES.find(s => s.name.toLowerCase() === sub.name.toLowerCase());
     if (service) setSelectedService(service);
     else setSelectedService(null);
@@ -195,7 +283,7 @@ export default function DashboardPage() {
 
   const closeModal = () => {
     setModalOpen(false); setSelectedService(null); setIsEditing(false); setEditId(null);
-    setForm({ name: "", price: "", billing_cycle: "monthly", start_date: "", category: "" });
+    setForm({ name: "", price: "", billing_cycle: "monthly", start_date: "", category: "", trial_end_date: "", promo_end_date: "", promo_price: "", last_used_date: "", shared_with: "" });
   };
 
   const tileContent = ({ date, view }: { date: Date, view: string }) => {
@@ -247,6 +335,37 @@ export default function DashboardPage() {
     localStorage.setItem(sentKey, JSON.stringify(newSent));
   }, [subscriptions]);
 
+  const forecastData = useMemo(() => generateForecast(subscriptions, 6), [subscriptions]);
+
+  const bundles = useMemo(() => detectBundles(subscriptions), [subscriptions]);
+
+  const unusedSubs = subscriptions.filter(s => {
+    if (!s.last_used_date) return false;
+    const days = Math.floor((now - new Date(s.last_used_date).getTime()) / (1000 * 60 * 60 * 24));
+    return days > 60;
+  });
+
+  const cancelSavings = useMemo(() => {
+    return unusedSubs.reduce((acc, sub) => acc + Number(sub.price), 0);
+  }, [unusedSubs]);
+
+  const detoxProgress = detox.target > 0 ? Math.min(100, Math.round((detox.current / detox.target) * 100)) : 0;
+
+  const yearReview = useMemo(() => {
+    const totalYearly = subscriptions.reduce((acc, sub) => {
+      const price = Number(sub.price);
+      return acc + (sub.billing_cycle === 'monthly' ? price * 12 : price);
+    }, 0);
+    const avgMonthly = Math.round(totalYearly / 12);
+    return {
+      totalYearly,
+      avgMonthly,
+      count: subscriptions.length,
+      mostExpensive: mostExpensive?.name || '無',
+      categoryBreakdown: chartData,
+    };
+  }, [subscriptions, mostExpensive, chartData]);
+
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white font-sans selection:bg-[#D4A574]/30">
 
@@ -260,6 +379,13 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setReviewOpen(true)}
+              className="text-zinc-400 hover:text-[#D4A574] transition-colors p-2 hover:bg-white/5 rounded-lg"
+              title="年度回顧"
+            >
+              <BarChart3 size={18} />
+            </button>
             <div className="relative">
               <button onClick={() => setCurrencyMenuOpen(!currencyMenuOpen)} className="flex items-center gap-2 bg-[#161616] hover:bg-[#1F1F1F] active:scale-95 transition-all rounded-full px-4 py-2 border border-white/10">
                 <Globe size={14} className="text-[#D4A574]" />
@@ -302,9 +428,29 @@ export default function DashboardPage() {
               <p className="text-[#E8D5B7] font-medium mb-1 flex items-center gap-2 text-sm"><CreditCard size={16} /> 每月預估支出</p>
               <h2 className="text-4xl font-bold mb-2 text-white drop-shadow-md"><span className="text-2xl opacity-80 mr-1">{currentSymbol}</span>{totalMonthlyCostDisplay}</h2>
             </div>
-            <div className="bg-black/20 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <p className="text-xs text-[#E8D5B7] mb-1">最昂貴的訂閱</p>
-              <p className="font-bold text-lg text-white truncate">{mostExpensive ? mostExpensive.name : "無"}</p>
+            <div className="bg-black/20 backdrop-blur-sm rounded-xl p-4 border border-white/10 space-y-3">
+              <div>
+                <p className="text-xs text-[#E8D5B7] mb-1">最昂貴的訂閱</p>
+                <p className="font-bold text-lg text-white truncate">{mostExpensive ? mostExpensive.name : "無"}</p>
+              </div>
+
+              {budget.enabled && budget.amount > 0 && (
+                <div>
+                  <div className="flex items-center justify-between text-xs text-[#E8D5B7] mb-1.5">
+                    <span>預算進度</span>
+                    <span>{currentSymbol} {convertPrice(totalMonthlyCost)} / {currentSymbol} {convertPrice(budget.amount)}</span>
+                  </div>
+                  <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-700 ${budgetPct > 100 ? 'bg-red-400' : budgetPct > 80 ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                      style={{ width: `${Math.min(100, budgetPct)}%` }}
+                    />
+                  </div>
+                  {budgetPct > 100 && (
+                    <p className="text-xs text-red-300 mt-1 flex items-center gap-1"><AlertTriangle size={10} /> 已超過預算！</p>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -361,6 +507,109 @@ export default function DashboardPage() {
             </div>
           </motion.div>
         </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-12">
+          <motion.div className="lg:col-span-2 bg-[#161616] rounded-3xl p-6 border border-white/5 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="text-emerald-400" size={18} />
+              <h3 className="text-base font-bold text-white">未來 6 個月支出預測</h3>
+            </div>
+            <div className="w-full h-[180px]">
+              {forecastData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={forecastData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+                    <XAxis dataKey="month" stroke="#71717a" tick={{ fontSize: 12 }} />
+                    <YAxis stroke="#71717a" tick={{ fontSize: 12 }} tickFormatter={(v) => `${currentSymbol}${v}`} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0A0A0A', borderColor: '#D4A57440', borderRadius: '12px', color: '#fff' }} />
+                    <Line type="monotone" dataKey="amount" stroke="#D4A574" strokeWidth={2} dot={{ fill: '#D4A574', r: 4 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-zinc-500 text-sm">尚無數據</div>
+              )}
+            </div>
+          </motion.div>
+
+          <motion.div className="lg:col-span-1 bg-[#161616] rounded-3xl p-6 border border-white/5 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <Rocket className="text-amber-400" size={18} />
+              <h3 className="text-base font-bold text-white">如果取消這些...</h3>
+            </div>
+            {unusedSubs.length > 0 ? (
+              <div className="space-y-3">
+                {unusedSubs.slice(0, 4).map(sub => (
+                  <div key={sub.id} className="flex items-center justify-between bg-[#0A0A0A] rounded-xl px-3 py-2 border border-white/5">
+                    <span className="text-sm text-zinc-300 truncate">{sub.name}</span>
+                    <span className="text-sm font-mono text-zinc-500">{currentSymbol} {convertPrice(Number(sub.price))}</span>
+                  </div>
+                ))}
+                <div className="pt-2 border-t border-white/5">
+                  <p className="text-xs text-emerald-400">
+                    每月可省 <span className="font-bold">{currentSymbol} {convertPrice(cancelSavings)}</span>
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    相當於 {Math.floor(cancelSavings / 200)} 杯咖啡 ☕
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="h-[120px] flex items-center justify-center text-zinc-500 text-sm">沒有長期未使用的訂閱</div>
+            )}
+          </motion.div>
+
+          <motion.div className="lg:col-span-1 bg-[#161616] rounded-3xl p-6 border border-white/5 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <Target className="text-purple-400" size={18} />
+              <h3 className="text-base font-bold text-white">排毒挑戰</h3>
+            </div>
+            {detox.target > 0 ? (
+              <div>
+                <div className="flex items-center justify-between text-sm text-zinc-400 mb-1">
+                  <span>{detox.current} / {detox.target} 個已取消</span>
+                  <span>{detoxProgress}%</span>
+                </div>
+                <div className="w-full bg-[#0A0A0A] rounded-full h-2.5 overflow-hidden border border-white/5">
+                  <div className="h-full rounded-full bg-gradient-to-r from-purple-500 to-emerald-400 transition-all duration-700" style={{ width: `${detoxProgress}%` }} />
+                </div>
+                {detoxProgress >= 100 && (
+                  <p className="text-xs text-emerald-400 mt-2 flex items-center gap-1"><Trophy size={12} /> 挑戰達成！你是訂閱管理大師！</p>
+                )}
+                <Link href="/settings" className="block text-xs text-zinc-500 mt-3 hover:text-[#D4A574] transition-colors">修改目標 →</Link>
+              </div>
+            ) : (
+              <div className="h-[120px] flex items-center justify-center">
+                <Link href="/settings" className="text-sm text-[#D4A574] hover:text-[#E8D5B7] transition-colors">在設定中開啟排毒挑戰 →</Link>
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {bundles.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 bg-[#161616] rounded-3xl p-6 border border-amber-500/20 shadow-xl">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="text-amber-400" size={18} />
+              <h3 className="text-base font-bold text-white">綑綁服務偵測</h3>
+              <span className="text-xs text-zinc-500">合併同品牌服務可能更省錢</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {bundles.map(bundle => (
+                <div key={bundle.name} className="bg-[#0A0A0A] rounded-2xl p-4 border border-white/5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-white">{bundle.name}</span>
+                    <span className="text-xs font-mono text-zinc-400">{currentSymbol} {convertPrice(bundle.totalPrice)}/月</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {bundle.members.map(m => (
+                      <span key={m} className="text-xs px-2 py-0.5 bg-zinc-800 rounded-full text-zinc-400">{m}</span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-emerald-400">考慮合併為 {bundle.name} 方案節省開支</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div className="flex flex-col md:flex-row gap-4 flex-1">
@@ -443,10 +692,10 @@ export default function DashboardPage() {
                       <AnimatePresence>
                         {selectedService && selectedService.plans && (
                           <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.25, ease: 'easeInOut' }}
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
                           >
                             <div className="bg-[#0A0A0A] rounded-2xl p-5 border border-[#D4A574]/30 mt-3">
                               <p className="text-sm text-[#E8D5B7] mb-3 font-bold flex items-center gap-2"><Zap size={16} /> 選擇 {selectedService.name} 方案</p>
@@ -472,6 +721,16 @@ export default function DashboardPage() {
                         <div><label className="block text-base text-zinc-400 mb-2">開始日期</label><DatePicker selected={form.start_date ? new Date(form.start_date) : null} onChange={(date: Date | null) => setForm({ ...form, start_date: date ? date.toISOString().split('T')[0] : '' })} dateFormat="yyyy/MM/dd" placeholderText="點擊選擇日期" className="w-full px-5 py-4 text-lg rounded-2xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] focus:ring-1 focus:ring-[#D4A574] transition-all outline-none cursor-pointer" portalId="root-portal" /></div>
                         <div><label className="block text-base text-zinc-400 mb-2">分類 (選填)</label><input className="w-full px-5 py-4 text-lg rounded-2xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] transition-all" placeholder="娛樂..." value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></div>
                       </div>
+                      <div className="border-t border-white/10 pt-5">
+                        <p className="text-sm text-zinc-500 mb-4 font-medium flex items-center gap-2"><Gift size={14} /> 進階資訊 (選填)</p>
+                        <div className="grid grid-cols-2 gap-5">
+                          <div><label className="block text-sm text-zinc-400 mb-2 flex items-center gap-1"><Gift size={12} /> 試用到期日</label><DatePicker selected={form.trial_end_date ? new Date(form.trial_end_date) : null} onChange={(date: Date | null) => setForm({ ...form, trial_end_date: date ? date.toISOString().split('T')[0] : '' })} dateFormat="yyyy/MM/dd" placeholderText="選填" className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] transition-all outline-none cursor-pointer" portalId="root-portal" /></div>
+                          <div><label className="block text-sm text-zinc-400 mb-2 flex items-center gap-1"><Tag size={12} /> 優惠到期日</label><DatePicker selected={form.promo_end_date ? new Date(form.promo_end_date) : null} onChange={(date: Date | null) => setForm({ ...form, promo_end_date: date ? date.toISOString().split('T')[0] : '' })} dateFormat="yyyy/MM/dd" placeholderText="選填" className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] transition-all outline-none cursor-pointer" portalId="root-portal" /></div>
+                          <div><label className="block text-sm text-zinc-400 mb-2 flex items-center gap-1"><Tag size={12} /> 優惠價格 (TWD)</label><input type="number" className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] transition-all outline-none" placeholder="選填" value={form.promo_price} onChange={(e) => setForm({ ...form, promo_price: e.target.value })} /></div>
+                          <div><label className="block text-sm text-zinc-400 mb-2 flex items-center gap-1"><Clock size={12} /> 最近使用日</label><DatePicker selected={form.last_used_date ? new Date(form.last_used_date) : null} onChange={(date: Date | null) => setForm({ ...form, last_used_date: date ? date.toISOString().split('T')[0] : '' })} dateFormat="yyyy/MM/dd" placeholderText="選填" className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] transition-all outline-none cursor-pointer" portalId="root-portal" /></div>
+                          <div className="col-span-2"><label className="block text-sm text-zinc-400 mb-2 flex items-center gap-1"><Users size={12} /> 共享者 (逗號分隔)</label><input className="w-full px-4 py-3 rounded-xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] transition-all outline-none" placeholder="例如：小明, 小華, 小美" value={form.shared_with} onChange={(e) => setForm({ ...form, shared_with: e.target.value })} /></div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div className="shrink-0 border-t border-white/10 p-8 pt-6 bg-[#161616]">
@@ -479,6 +738,57 @@ export default function DashboardPage() {
                   </div>
                 </form>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Year Review Modal */}
+      <AnimatePresence>
+        {reviewOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setReviewOpen(false)} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0, y: 50, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 50, scale: 0.95 }} className="bg-[#161616] border border-white/10 rounded-3xl shadow-2xl w-full max-w-lg relative z-10 p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2"><Crown className="text-[#D4A574]" size={20} /> 年度回顧</h3>
+                <button onClick={() => setReviewOpen(false)} className="text-zinc-400 hover:text-white bg-white/5 rounded-full p-2 transition-colors"><X size={20} /></button>
+              </div>
+              {subscriptions.length > 0 ? (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-[#0A0A0A] rounded-2xl p-4 border border-white/5 text-center">
+                      <p className="text-xs text-zinc-500 mb-1">年支出總額</p>
+                      <p className="text-2xl font-bold text-white">{currentSymbol} {convertPrice(yearReview.totalYearly)}</p>
+                    </div>
+                    <div className="bg-[#0A0A0A] rounded-2xl p-4 border border-white/5 text-center">
+                      <p className="text-xs text-zinc-500 mb-1">月均支出</p>
+                      <p className="text-2xl font-bold text-white">{currentSymbol} {convertPrice(yearReview.avgMonthly)}</p>
+                    </div>
+                    <div className="bg-[#0A0A0A] rounded-2xl p-4 border border-white/5 text-center">
+                      <p className="text-xs text-zinc-500 mb-1">訂閱數量</p>
+                      <p className="text-2xl font-bold text-white">{yearReview.count}</p>
+                    </div>
+                    <div className="bg-[#0A0A0A] rounded-2xl p-4 border border-white/5 text-center">
+                      <p className="text-xs text-zinc-500 mb-1">最貴訂閱</p>
+                      <p className="text-sm font-bold text-white truncate">{yearReview.mostExpensive}</p>
+                    </div>
+                  </div>
+                  <div className="h-[120px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={yearReview.categoryBreakdown}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+                        <XAxis dataKey="name" stroke="#71717a" tick={{ fontSize: 10 }} />
+                        <YAxis stroke="#71717a" tick={{ fontSize: 10 }} tickFormatter={(v) => `${currentSymbol}${v}`} />
+                        <Tooltip contentStyle={{ backgroundColor: '#0A0A0A', borderColor: '#D4A57440', borderRadius: '12px', color: '#fff' }} />
+                        <Bar dataKey="value" fill="#D4A574" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-zinc-500 text-center">數據基於目前訂閱彙總計算</p>
+                </div>
+              ) : (
+                <p className="text-zinc-500 text-center py-6">尚無數據可回顧</p>
+              )}
             </motion.div>
           </div>
         )}

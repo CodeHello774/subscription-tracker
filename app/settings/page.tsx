@@ -3,20 +3,25 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowLeft, Save, User, Loader2, CheckCircle, XCircle, Bell, BellOff, Mail, Sliders } from "lucide-react";
+import { ArrowLeft, Save, User, Loader2, CheckCircle, XCircle, Bell, BellOff, Mail, Sliders, Wallet, Target, TrendingDown, Trophy, RefreshCcw } from "lucide-react";
 import { getProfile, saveProfile, getSubscriptions, updateSubscription } from "@/lib/storage";
 import { getNotificationSettings, saveNotificationSettings, type NotificationSettings } from "@/lib/storage";
-import type { Subscription } from "@/types";
+import { getBudgetSettings, saveBudgetSettings, getDetoxChallenge, saveDetoxChallenge } from "@/lib/storage";
+import type { Subscription, BudgetSettings, DetoxChallenge } from "@/types";
 
 export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [notif, setNotif] = useState<NotificationSettings>({ email: '', enabled: false, reminder_days: 3 });
+  const [budget, setBudget] = useState<BudgetSettings>({ amount: 100, enabled: false });
+  const [detox, setDetox] = useState<DetoxChallenge>({ target: 0, start_date: '', current: 0 });
   const [subs, setSubs] = useState<Subscription[]>([]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setDisplayName(getProfile().displayName || '');
       setNotif(getNotificationSettings());
+      setBudget(getBudgetSettings());
+      setDetox(getDetoxChallenge());
       setSubs(getSubscriptions());
     }, 0);
     return () => clearTimeout(timer);
@@ -37,7 +42,7 @@ export default function SettingsPage() {
     setAlertConfig({ ...alertConfig, show: false });
   };
 
-  const handleSaveName = async () => {
+  const handleSaveName = () => {
     setSaving(true);
     saveProfile({ displayName });
     setSaving(false);
@@ -49,12 +54,32 @@ export default function SettingsPage() {
     showAlert('success', '通知設定已儲存！');
   };
 
+  const handleSaveBudget = () => {
+    saveBudgetSettings(budget);
+    if (budget.enabled && budget.amount > 0) {
+      showAlert('success', `每月預算目標已設定為 NT$ ${budget.amount}`);
+    } else {
+      showAlert('success', '預算目標已關閉');
+    }
+  };
+
+  const handleSaveDetox = () => {
+    saveDetoxChallenge(detox);
+    if (detox.target > 0) {
+      showAlert('success', `排毒挑戰已設定：取消 ${detox.target} 個訂閱`);
+    } else {
+      showAlert('success', '排毒挑戰已關閉');
+    }
+  };
+
   const toggleSubNotify = (id: string) => {
     const sub = subs.find(s => s.id === id);
     if (!sub) return;
     updateSubscription(id, { notify: !sub.notify });
     setSubs(getSubscriptions());
   };
+
+  const activeSubs = subs;
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white font-sans selection:bg-[#D4A574]/30 p-6 md:p-12 relative">
@@ -89,7 +114,94 @@ export default function SettingsPage() {
           </div>
         </motion.div>
 
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-[#161616] border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+          <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-white/5 pb-4">
+            <Wallet className="text-emerald-400" size={20} /> 每月預算目標
+          </h2>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-zinc-400 font-medium">啟用預算目標</label>
+              <button
+                onClick={() => setBudget({ ...budget, enabled: !budget.enabled })}
+                className={`relative w-12 h-6 rounded-full transition-colors ${budget.enabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${budget.enabled ? 'translate-x-6' : ''}`} />
+              </button>
+            </div>
+            {budget.enabled && (
+              <div>
+                <label className="block text-sm text-zinc-400 mb-2 font-medium">每月訂閱預算 (TWD)</label>
+                <input
+                  type="number"
+                  value={budget.amount}
+                  onChange={(e) => setBudget({ ...budget, amount: Number(e.target.value) })}
+                  className="w-full px-5 py-3 rounded-xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] transition-all outline-none"
+                  placeholder="5000"
+                />
+                <p className="text-xs text-zinc-500 mt-2">在儀表板查看預算進度條，超支時會顯示警告。</p>
+              </div>
+            )}
+            <div className="pt-2">
+              <button onClick={handleSaveBudget} className="w-full md:w-auto px-8 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3 rounded-xl font-bold hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                <Save size={18} /> 儲存預算設定
+              </button>
+            </div>
+          </div>
+        </motion.div>
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-[#161616] border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+
+          <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-white/5 pb-4">
+            <Target className="text-purple-400" size={20} /> 排毒挑戰
+          </h2>
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm text-zinc-400 mb-2 font-medium flex items-center gap-2"><TrendingDown size={14} /> 目標取消數量</label>
+              <input
+                type="number"
+                value={detox.target}
+                onChange={(e) => setDetox({ ...detox, target: Number(e.target.value) })}
+                className="w-full px-5 py-3 rounded-xl bg-[#0A0A0A] border border-white/10 text-white focus:border-[#D4A574] transition-all outline-none"
+                placeholder="例如：3"
+              />
+              <p className="text-xs text-zinc-500 mt-2">設定您想要取消的訂閱數量，在儀表板追蹤進度。</p>
+            </div>
+
+            {detox.target > 0 && (
+              <div>
+                <div className="flex items-center justify-between text-sm text-zinc-400 mb-2">
+                  <span>目前進度</span>
+                  <span>{detox.current} / {detox.target}</span>
+                </div>
+                <div className="w-full bg-[#0A0A0A] rounded-full h-3 overflow-hidden border border-white/5">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-purple-500 to-emerald-400 transition-all duration-700"
+                    style={{ width: `${Math.min(100, Math.round((detox.current / detox.target) * 100))}%` }}
+                  />
+                </div>
+                {detox.current >= detox.target && detox.target > 0 && (
+                  <p className="text-sm text-emerald-400 mt-3 flex items-center gap-2"><Trophy size={16} /> 挑戰達成！你做得很棒！</p>
+                )}
+                <button
+                  onClick={() => { saveDetoxChallenge({ ...detox, current: 0 }); setDetox({ ...detox, current: 0 }); showAlert('success', '排毒進度已重置'); }}
+                  className="mt-3 text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+                >
+                  <RefreshCcw size={12} /> 重置進度
+                </button>
+              </div>
+            )}
+
+            <div className="pt-2">
+              <button onClick={handleSaveDetox} className="w-full md:w-auto px-8 bg-gradient-to-r from-purple-500 to-purple-600 text-white py-3 rounded-xl font-bold hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] active:scale-95 transition-all flex items-center justify-center gap-2">
+                <Save size={18} /> 儲存挑戰設定
+              </button>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-[#161616] border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#D4A574]/8 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
 
           <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-white/5 pb-4">
@@ -134,11 +246,11 @@ export default function SettingsPage() {
 
             <div>
               <label className="block text-sm text-zinc-400 mb-3 font-medium">個別訂閱通知設定</label>
-              {subs.length === 0 ? (
+              {activeSubs.length === 0 ? (
                 <p className="text-zinc-600 text-sm">尚無訂閱項目，請先到儀表板新增。</p>
               ) : (
                 <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-2">
-                  {subs.map((sub) => (
+                  {activeSubs.map((sub) => (
                     <div key={sub.id} className="flex items-center justify-between bg-[#0A0A0A] rounded-xl px-4 py-3 border border-white/5">
                       <span className="text-sm text-zinc-300 truncate">{sub.name}</span>
                       <button
