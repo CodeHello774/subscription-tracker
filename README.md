@@ -2,6 +2,8 @@
 
 集中管理 Netflix、Spotify 等所有訂閱支出，自動計算每月花費、多幣別換算，掌握你的財務自由。
 
+![Dashboard Preview](public/dashboard-preview.png)
+
 ## 功能
 
 - **📊 儀表板** — 每月總支出、類別佔比圓餅圖、即時匯率
