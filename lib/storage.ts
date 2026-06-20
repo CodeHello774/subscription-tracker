@@ -1,4 +1,4 @@
-import type { Subscription, BudgetSettings, DetoxChallenge } from '@/types';
+import type { Subscription, BudgetSettings, DetoxChallenge, PaymentRecord, PriceRecord } from '@/types';
 
 const SUBSCRIPTIONS_KEY = 'subscription_tracker_subs';
 const PROFILE_KEY = 'subscription_tracker_profile';
@@ -35,7 +35,13 @@ export function updateSubscription(id: string, updates: Partial<Subscription>): 
   const subs = getSubscriptions();
   const idx = subs.findIndex(s => s.id === id);
   if (idx !== -1) {
-    subs[idx] = { ...subs[idx], ...updates };
+    const old = subs[idx];
+    if (updates.price !== undefined && Number(updates.price) !== Number(old.price)) {
+      const record: PriceRecord = { date: new Date().toISOString().split('T')[0], price: Number(old.price) };
+      subs[idx] = { ...old, ...updates, price_history: [...(old.price_history || []), record] };
+    } else {
+      subs[idx] = { ...old, ...updates };
+    }
     saveSubscriptions(subs);
   }
   return subs;
@@ -44,6 +50,17 @@ export function updateSubscription(id: string, updates: Partial<Subscription>): 
 export function deleteSubscription(id: string): Subscription[] {
   const subs = getSubscriptions().filter(s => s.id !== id);
   saveSubscriptions(subs);
+  return subs;
+}
+
+export function addPaymentRecord(id: string, record: Omit<PaymentRecord, 'date'> & { date?: string }): Subscription[] {
+  const subs = getSubscriptions();
+  const idx = subs.findIndex(s => s.id === id);
+  if (idx !== -1) {
+    const payment: PaymentRecord = { date: record.date || new Date().toISOString().split('T')[0], amount: record.amount, note: record.note };
+    subs[idx] = { ...subs[idx], payment_history: [...(subs[idx].payment_history || []), payment] };
+    saveSubscriptions(subs);
+  }
   return subs;
 }
 

@@ -3,7 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { CalendarIcon, ExternalLink, Pencil, Trash2, Bell, BellOff, Clock, Tag, Users, Gift, Zap, AlertTriangle } from "lucide-react";
+import { CalendarIcon, ExternalLink, Pencil, Trash2, Bell, BellOff, Clock, Tag, Users, Gift, Zap, AlertTriangle, History, TrendingUp } from "lucide-react";
 import type { Subscription } from "@/types";
 
 const img = (src: string) => <Image src={src} alt="" width={24} height={24} className="object-contain" unoptimized />;
@@ -54,15 +54,13 @@ export { POPULAR_SERVICES };
 function daysUntil(dateStr: string): number {
   const target = new Date(dateStr);
   const now = new Date();
-  const diff = target.getTime() - now.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function daysSince(dateStr: string): number {
   const target = new Date(dateStr);
   const now = new Date();
-  const diff = now.getTime() - target.getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
+  return Math.floor((now.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 interface SubscriptionCardProps {
@@ -73,6 +71,8 @@ interface SubscriptionCardProps {
   onEdit: (subscription: Subscription) => void;
   onDelete: (id: string) => void;
   onToggleNotify?: (id: string) => void;
+  onShowHistory?: (subscription: Subscription) => void;
+  onLogPayment?: (subscription: Subscription) => void;
 }
 
 export default function SubscriptionCard({
@@ -83,6 +83,8 @@ export default function SubscriptionCard({
   onEdit,
   onDelete,
   onToggleNotify,
+  onShowHistory,
+  onLogPayment,
 }: SubscriptionCardProps) {
   const iconOrLetter = getServiceIcon(sub.name);
   const isIcon = React.isValidElement(iconOrLetter) && iconOrLetter.type !== 'div';
@@ -104,6 +106,10 @@ export default function SubscriptionCard({
   const sharedCount = sub.shared_with?.length || 0;
   const costPerPerson = sharedCount > 0 ? Math.round(monthlyPrice / (sharedCount + 1)) : null;
 
+  const priceChanges = sub.price_history?.length || 0;
+  const lastPriceChange = sub.price_history?.[sub.price_history.length - 1];
+  const paymentCount = sub.payment_history?.length || 0;
+
   return (
     <motion.div
       key={sub.id}
@@ -111,11 +117,8 @@ export default function SubscriptionCard({
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay: index * 0.06, type: "spring", stiffness: 120, damping: 15 }}
       layout
-      whileHover={{
-        y: -6,
-        boxShadow: "0 12px 35px -8px rgba(212, 165, 116, 0.25)",
-      }}
-      className="group relative bg-[#161616] rounded-2xl p-6 border border-white/5 hover:border-[#D4A574]/50 transition-all duration-300 flex flex-col justify-between"
+      whileHover={{ y: -6, boxShadow: "0 12px 35px -8px rgba(212, 165, 116, 0.25)" }}
+      className="group relative bg-[var(--bg-card)] rounded-2xl p-6 border border-[var(--border)] hover:border-[#D4A574]/50 transition-all duration-300 flex flex-col justify-between"
     >
       {(trialExpiring || trialExpired) && (
         <div className={`absolute -top-2 -right-2 z-10 px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1 ${trialExpired ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
@@ -130,111 +133,91 @@ export default function SubscriptionCard({
         </div>
       )}
 
+      {priceChanges > 0 && !trialExpiring && !promoExpiring && (
+        <div className="absolute -top-2 -right-2 z-10 px-3 py-1 rounded-full text-xs font-bold shadow-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center gap-1">
+          <TrendingUp size={12} />
+          價格變動
+        </div>
+      )}
+
       <div>
         <div className="flex justify-between items-start mb-5">
           {isIcon ? (
             <div className="w-12 h-12 rounded-xl bg-zinc-800 border border-white/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
               {iconOrLetter}
             </div>
-          ) : (
-            iconOrLetter
-          )}
+          ) : iconOrLetter}
           <span className="bg-[#D4A574]/10 text-[#E8D5B7] text-xs px-3 py-1 rounded-full border border-[#D4A574]/20">
             {sub.category || "訂閱"}
           </span>
         </div>
-        <h4 className="text-lg font-bold text-white mb-1 truncate">{sub.name}</h4>
+        <h4 className="text-lg font-bold mb-1 truncate">{sub.name}</h4>
         <div className="flex items-baseline gap-1 mb-4 text-zinc-300">
           <span className="text-2xl font-bold text-white">
             {currentSymbol} {convertPrice(sub.price)}
           </span>
-          <span className="text-sm text-zinc-500">
-            / {sub.billing_cycle === 'monthly' ? '月' : '年'}
-          </span>
+          <span className="text-sm text-zinc-500">/ {sub.billing_cycle === 'monthly' ? '月' : '年'}</span>
         </div>
 
         <div className="space-y-2 mb-4">
           {trialDaysLeft !== null && trialDaysLeft > 0 && !trialExpiring && (
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <Gift size={12} className="text-emerald-400" />
-              試用期剩 {trialDaysLeft} 天
-            </div>
+            <div className="flex items-center gap-2 text-xs text-zinc-400"><Gift size={12} className="text-emerald-400" />試用期剩 {trialDaysLeft} 天</div>
           )}
           {promoDaysLeft !== null && promoDaysLeft > 0 && !promoExpiring && (
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <Tag size={12} className="text-purple-400" />
-              優惠價剩 {promoDaysLeft} 天
-            </div>
+            <div className="flex items-center gap-2 text-xs text-zinc-400"><Tag size={12} className="text-purple-400" />優惠價剩 {promoDaysLeft} 天</div>
           )}
           {sub.billing_cycle === 'yearly' && savingsPct > 0 && (
-            <div className="flex items-center gap-2 text-xs text-emerald-400">
-              <Zap size={12} />
-              年繳省 {savingsPct}%（月均 {currentSymbol} {convertPrice(monthlyPrice)}）
-            </div>
+            <div className="flex items-center gap-2 text-xs text-emerald-400"><Zap size={12} />年繳省 {savingsPct}%（月均 {currentSymbol} {convertPrice(monthlyPrice)}）</div>
           )}
           {lastUsedDays !== null && (
             <div className={`flex items-center gap-2 text-xs ${lastUsedDays > 60 ? 'text-red-400' : 'text-zinc-400'}`}>
-              <Clock size={12} />
-              {lastUsedDays > 60 ? `${Math.floor(lastUsedDays / 30)} 個月未使用` : `${lastUsedDays} 天前使用`}
+              <Clock size={12} />{lastUsedDays > 60 ? `${Math.floor(lastUsedDays / 30)} 個月未使用` : `${lastUsedDays} 天前使用`}
             </div>
           )}
           {sharedCount > 0 && costPerPerson !== null && (
-            <div className="flex items-center gap-2 text-xs text-blue-400">
-              <Users size={12} />
-              與 {sharedCount} 人分攤 — 每人 {currentSymbol} {convertPrice(costPerPerson)}/月
-            </div>
+            <div className="flex items-center gap-2 text-xs text-blue-400"><Users size={12} />與 {sharedCount} 人分攤 — 每人 {currentSymbol} {convertPrice(costPerPerson)}/月</div>
+          )}
+          {lastPriceChange && (
+            <div className="flex items-center gap-2 text-xs text-blue-400"><TrendingUp size={12} />上次調價: {lastPriceChange.date} ({currentSymbol} {convertPrice(lastPriceChange.price)} → {currentSymbol} {convertPrice(sub.price)})</div>
+          )}
+          {onLogPayment && paymentCount > 0 && (
+            <div className="flex items-center gap-2 text-xs text-zinc-400"><History size={12} />{paymentCount} 筆扣款紀錄</div>
           )}
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-2">
+      <div className="flex items-center justify-between pt-4 border-t border-[var(--border)] mt-2">
         <div className="flex items-center gap-2 text-sm text-zinc-500">
           <CalendarIcon size={14} />
-          <span className="whitespace-nowrap">
-            <span className="text-[#E8D5B7]">{sub.next_payment_date}</span>
-          </span>
+          <span className="whitespace-nowrap"><span className="text-[#E8D5B7]">{sub.next_payment_date}</span></span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {onShowHistory && (
+            <button onClick={(e) => { e.stopPropagation(); onShowHistory(sub); }} className="text-zinc-500 hover:text-blue-400 transition-colors p-1.5 hover:bg-white/5 rounded-lg" title="付款紀錄">
+              <History size={14} />
+            </button>
+          )}
+          {onLogPayment && (
+            <button onClick={(e) => { e.stopPropagation(); onLogPayment(sub); }} className="text-zinc-500 hover:text-emerald-400 transition-colors p-1.5 hover:bg-white/5 rounded-lg" title="紀錄扣款">
+              <Zap size={14} />
+            </button>
+          )}
           {onToggleNotify && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggleNotify(sub.id); }}
-              className={`transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90 ${sub.notify ? 'text-[#D4A574] hover:text-[#E8D5B7]' : 'text-zinc-600 hover:text-[#D4A574]'}`}
-              title={sub.notify ? "關閉此項通知" : "開啟此項通知"}
-            >
-              {sub.notify ? <Bell size={16} /> : <BellOff size={16} />}
+            <button onClick={(e) => { e.stopPropagation(); onToggleNotify(sub.id); }} className={`transition-colors p-1.5 hover:bg-white/5 rounded-lg active:scale-90 ${sub.notify ? 'text-[#D4A574] hover:text-[#E8D5B7]' : 'text-zinc-600 hover:text-[#D4A574]'}`} title={sub.notify ? "關閉此項通知" : "開啟此項通知"}>
+              {sub.notify ? <Bell size={14} /> : <BellOff size={14} />}
             </button>
           )}
           {cancelUrl && (
-            <a
-              href={cancelUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-zinc-500 hover:text-yellow-400 transition-colors p-2 hover:bg-white/5 rounded-lg"
-              title="如何取消訂閱？"
-            >
-              <ExternalLink size={16} />
+            <a href={cancelUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-yellow-400 transition-colors p-1.5 hover:bg-white/5 rounded-lg" title="如何取消訂閱？">
+              <ExternalLink size={14} />
             </a>
           )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(sub);
-            }}
-            className="text-zinc-600 hover:text-blue-400 transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90"
-            title="編輯"
-          >
-            <Pencil size={16} />
+          <button onClick={(e) => { e.stopPropagation(); onEdit(sub); }} className="text-zinc-600 hover:text-blue-400 transition-colors p-1.5 hover:bg-white/5 rounded-lg active:scale-90" title="編輯">
+            <Pencil size={14} />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(sub.id);
-            }}
-            className="text-zinc-600 hover:text-red-400 transition-colors p-2 hover:bg-white/5 rounded-lg active:scale-90"
-            title="刪除"
-          >
-            <Trash2 size={16} />
+          <button onClick={(e) => { e.stopPropagation(); onDelete(sub.id); }} className="text-zinc-600 hover:text-red-400 transition-colors p-1.5 hover:bg-white/5 rounded-lg active:scale-90" title="刪除">
+            <Trash2 size={14} />
           </button>
         </div>
       </div>

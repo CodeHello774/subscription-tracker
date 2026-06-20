@@ -1,3 +1,14 @@
+export interface PaymentRecord {
+  date: string;
+  amount: number;
+  note?: string;
+}
+
+export interface PriceRecord {
+  date: string;
+  price: number;
+}
+
 export interface Subscription {
   id: string;
   name: string;
@@ -14,6 +25,8 @@ export interface Subscription {
   promo_price?: number;
   last_used_date?: string;
   shared_with?: { name: string; contribution: number }[];
+  payment_history?: PaymentRecord[];
+  price_history?: PriceRecord[];
 }
 
 export interface BudgetSettings {
